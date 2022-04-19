@@ -1,10 +1,3 @@
-/*
-#include 
-#include 
-#include
-*/
-
-
 #include <ESP8266WiFi.h>
 
 const char* ssid = "AREC_WL";
