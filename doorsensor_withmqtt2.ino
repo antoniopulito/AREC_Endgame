@@ -86,8 +86,9 @@ void callback(char* topic, byte* payload, unsigned int length) {\
   delay(1000);                                     //Wait a second
   digitalWrite(relayPin, 0);                              //Turn the output back off   
   delay(1000);                                     //Let Voltage settle before resuming.  
+*/
 
-
+// State initial door position
   if (rx == "Status") //normal operation
 //  if (rx == "100")  //difference in home-assistant, prevent error in log
   {
@@ -96,14 +97,19 @@ void callback(char* topic, byte* payload, unsigned int length) {\
          {    
             client.publish(mqtt_topic, "Open");
             Serial.println("TX: DoorOpened");
+            ledState=0; //off
+            digitalWrite(sensorPin, ledState);
          }
       else
          {
             client.publish(mqtt_topic, "Closed");
             Serial.println("TX: DoorClosed");
+            ledState=1; //on
+            digitalWrite(sensorPin, ledState);
         }
+       Serial.println("Hello1");        
   }
-*/
+
 }
 
 
@@ -117,7 +123,7 @@ void reconnect() {
   //needs next line for proper connect to mqtt broker that doesn't allow anonymous
   //if (client.connect(mqtt_device_id, mqtt_user, mqtt_password, mqtt_topic, mqtt_qos, mqtt_retain, mqtt_lwt)) {
     Serial.println("connected");
-  /*
+ /*   
   if (digitalRead(sensorPin) != vInp13)
     {
        vInp13 = digitalRead(sensorPin);
@@ -158,16 +164,16 @@ void loop() {
             client.publish(mqtt_topic, "Open");
             Serial.println("TX: DoorOpened");
             //doorState=opened;
-            //ledState=0; //off
-            //digitalWrite(sensorPin, ledState);
+            ledState=0; //off
+            digitalWrite(sensorPin, ledState);
          }
        else
         {
            client.publish(mqtt_topic, "Closed");
            Serial.println("TX: DoorClosed");
            //doorState=closed;
-           //ledState=1; //on
-           //digitalWrite(sensorPin, ledState);
+           ledState=1; //on
+           digitalWrite(sensorPin, ledState);
         }
     }
   client.loop();
