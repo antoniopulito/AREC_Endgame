@@ -10,7 +10,7 @@ const char* password = "AREC_WL_PASSWD";
 //IPAddress gateway(XXX.XXX.XXX.XXX);
 //IPAddress subnet(XXX.XXX.XXX.XXX);
 const char* mqtt_server = "192.168.2.101";
-const char* mqtt_topic = "doorstate";
+char g_door1_mqtt_topic[50];        // MQTT topic for reporting door1
 const char* mqtt_user = "eric";
 const char* mqtt_password = "eric";
 const char* mqtt_device_id = "Door_Sensor1";
@@ -18,22 +18,25 @@ const char* mqtt_device_id = "Door_Sensor1";
 const boolean mqtt_retain = 0; //set to 0 to resolve reconnect LOP issues
 const uint8_t mqtt_qos = 0; //can only be a value of (0, 1, 2)
 char vInp13 = 0;
-String rx;         // I Use WEMO D1 Mini so these are those pins
+String rx;         
 int rxLength = 0;
 //int relayPin = 5; 
 int sensorPin = 5;
 int ledGpioPin =4;
 
 // Not sure if needed
-int doorState=0;
+//int doorState=0;
 int ledState=0;
-#define closed 0
-#define opened 1
+//#define closed 0
+//#define opened 1
 
 WiFiClient espClient;
 PubSubClient client(espClient);
 
-void setup() {   //I use WEMO D1 Mini + relay board
+void setup() {   
+  // Set up topic for publishing sensor readings
+  sprintf(g_door1_mqtt_topic, "tele/%x/DOOR1",  ESP.getChipId());
+  
   pinMode(ledGpioPin, OUTPUT);
   pinMode(sensorPin, INPUT_PULLUP);
   //digitalWrite(relayPin, 1);
@@ -97,14 +100,14 @@ void callback(char* topic, byte* payload, unsigned int length) {\
        vInp13 = digitalRead(sensorPin);
        if (vInp13 == LOW)
          {    
-            client.publish(mqtt_topic, "Open");
+            client.publish(g_door1_mqtt_topic, "1");
             Serial.println("TX: DoorOpened");
             ledState=0; //off
             digitalWrite(ledGpioPin, ledState);
          }
       else
          {
-            client.publish(mqtt_topic, "Closed");
+            client.publish(g_door1_mqtt_topic, "0");
             Serial.println("TX: DoorClosed");
             ledState=1; //on
             digitalWrite(ledGpioPin, ledState);
@@ -120,7 +123,7 @@ void reconnect() {
   while (!client.connected()) {
   Serial.print("Attempting MQTT connection...");
   // Attempt to connect
-  if (client.connect(mqtt_topic,mqtt_user,mqtt_password)) {
+  if (client.connect(g_door1_mqtt_topic,mqtt_user,mqtt_password)) {
   //needs next line for proper connect to mqtt broker that doesn't allow anonymous
   //if (client.connect(mqtt_device_id, mqtt_user, mqtt_password, mqtt_topic, mqtt_qos, mqtt_retain, mqtt_lwt)) {
     Serial.println("connected");
@@ -141,7 +144,7 @@ void reconnect() {
   }
   */
       // ... and resubscribe
-      client.subscribe(mqtt_topic);
+      client.subscribe(g_door1_mqtt_topic);
     } else {
       Serial.print("failed, rc=");
       Serial.print(client.state());
@@ -166,7 +169,7 @@ void loop() {
             if (!client.connected()) {
                 reconnect();
             }
-            client.publish(mqtt_topic, "Open");
+            client.publish(g_door1_mqtt_topic, "1");
             Serial.println("TX: DoorOpened");
             //doorState=opened;
             ledState=0; //off
@@ -178,7 +181,7 @@ void loop() {
            if (!client.connected()) {
                 reconnect();
             }
-           client.publish(mqtt_topic, "Closed");
+           client.publish(g_door1_mqtt_topic, "0");
            Serial.println("TX: DoorClosed");
            //doorState=closed;
            ledState=1; //on
