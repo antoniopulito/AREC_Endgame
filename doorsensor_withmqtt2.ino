@@ -1,3 +1,5 @@
+// don't open serial monitor while running this pleaseee trust me
+
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
 
@@ -98,16 +100,15 @@ void callback(char* topic, byte* payload, unsigned int length) {\
             client.publish(mqtt_topic, "Open");
             Serial.println("TX: DoorOpened");
             ledState=0; //off
-            digitalWrite(sensorPin, ledState);
+            digitalWrite(ledGpioPin, ledState);
          }
       else
          {
             client.publish(mqtt_topic, "Closed");
             Serial.println("TX: DoorClosed");
             ledState=1; //on
-            digitalWrite(sensorPin, ledState);
-        }
-       Serial.println("Hello1");        
+            digitalWrite(ledGpioPin, ledState);
+        }        
   }
 
 }
@@ -152,28 +153,37 @@ void reconnect() {
 }
 
 void loop() {
-
+/*
   if (!client.connected()) {
     reconnect();
   }
+  */
   if (digitalRead(sensorPin) != vInp13)
     {
        vInp13 = digitalRead(sensorPin);
        if (vInp13 == LOW)
          {    
+            if (!client.connected()) {
+                reconnect();
+            }
             client.publish(mqtt_topic, "Open");
             Serial.println("TX: DoorOpened");
             //doorState=opened;
             ledState=0; //off
-            digitalWrite(sensorPin, ledState);
+            digitalWrite(ledGpioPin, ledState);
+            client.disconnect();  // Disconnect from MQTT broker
          }
        else
         {
+           if (!client.connected()) {
+                reconnect();
+            }
            client.publish(mqtt_topic, "Closed");
            Serial.println("TX: DoorClosed");
            //doorState=closed;
            ledState=1; //on
-           digitalWrite(sensorPin, ledState);
+           digitalWrite(ledGpioPin, ledState);
+           client.disconnect();   // Disconnect from MQTT broker
         }
     }
   client.loop();
