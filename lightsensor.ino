@@ -228,9 +228,9 @@ void advancedRead(void)
   uint16_t ir, full;
   ir = lum >> 16;
   full = lum & 0xFFFF;
-  
+  float lux = tsl.calculateLux(full, ir);
   // Read and send light sensor data
-  String message_string = String(full);
+  String message_string = String(lux);
   message_string.toCharArray(g_mqtt_message_buffer, message_string.length()+1);
   client.publish(g_light1_mqtt_topic, g_mqtt_message_buffer);
   
@@ -238,7 +238,7 @@ void advancedRead(void)
   Serial.print(F("IR: ")); Serial.print(ir);  Serial.print(F("  "));
   Serial.print(F("Full: ")); Serial.print(full); Serial.print(F("  "));
   Serial.print(F("Visible: ")); Serial.print(full - ir); Serial.print(F("  "));
-  Serial.print(F("Lux: ")); Serial.println(tsl.calculateLux(full, ir), 6);
+  Serial.print(F("Lux: ")); Serial.println(lux, 6);
 }
 
 /**************************************************************************/
