@@ -6,18 +6,11 @@
 #include <Adafruit_Sensor.h>
 #include "Adafruit_TSL2591.h"
 
-float full = 0;    // value of reading
-
 /* MQTT */
 char g_mqtt_message_buffer[150];    // General purpose buffer for MQTT messages
 char g_command_topic[50];           // MQTT topic for receiving commands
 
-#if REPORT_MQTT_SEPERATE
 char g_light1_mqtt_topic[50];        // MQTT topic for reporting temp1
-#endif
-#if REPORT_MQTT_JSON
-char g_mqtt_json_topic[50];         // MQTT topic for reporting all values using JSON
-#endif
 
 /****************************************************************************/
 // WIFI
@@ -196,7 +189,6 @@ void reconnect() {
     if (client.connect(mqtt_client_id, mqtt_user, mqtt_password)){
       Serial.println("Connected");
       sprintf(g_mqtt_message_buffer, "Device %s starting up", mqtt_client_id);
-      client.publish(status_topic, g_mqtt_message_buffer);
     } else{
       delay(5000);
     }
@@ -236,6 +228,12 @@ void advancedRead(void)
   uint16_t ir, full;
   ir = lum >> 16;
   full = lum & 0xFFFF;
+  
+  // Read and send light sensor data
+  String message_string = String(full);
+  message_string.toCharArray(g_mqtt_message_buffer, message_string.length()+1);
+  client.publish(g_light1_mqtt_topic, g_mqtt_message_buffer);
+  
   Serial.print(F("[ ")); Serial.print(millis()); Serial.print(F(" ms ] "));
   Serial.print(F("IR: ")); Serial.print(ir);  Serial.print(F("  "));
   Serial.print(F("Full: ")); Serial.print(full); Serial.print(F("  "));
@@ -282,15 +280,12 @@ void loop(void)
 {
   //simpleRead();
   //unifiedSensorAPIRead();
-  // read temperature data
+  
   advancedRead();
   if (!client.connected()) {
     reconnect();
   }
-  String message_string;
-  message_string = String(full);
-  message_string.toCharArray(g_mqtt_message_buffer, message_string.length()+1);
-  client.publish(g_light1_mqtt_topic, g_mqtt_message_buffer);
+  
   client.loop();
   // sampling rate
   delay(5000);
