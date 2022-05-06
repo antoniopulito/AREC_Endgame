@@ -6,7 +6,7 @@
 const char* ssid = "AREC_WL";
 const char* password = "AREC_WL_PASSWD";
 const char* mqtt_server = "192.168.2.101";
-char g_window1_mqtt_topic[50];        // MQTT topic for reporting window1
+char g_window1_mqtt_topic[50];        // MQTT topic for reporting window1          
 const char* mqtt_user = "eric";
 const char* mqtt_password = "eric";
 const char* mqtt_device_id = "Window_Sensor1";
@@ -15,9 +15,14 @@ const uint8_t mqtt_qos = 0; //can only be a value of (0, 1, 2)
 char vInp13 = 0;
 String rx;         
 int rxLength = 0;
-//int relayPin = 5; 
-int sensorPin = 5;
-int ledGpioPin =4;
+int sensorPin = 14;  
+int soundPin = 0;
+int ledBluePin = 4;
+int ledGreenPin = 5;
+int ledRedPin = 16;
+//int ledGpioPin =4;
+
+// window sensor D5 (14), Sound D3 (0), Blue D2 (4), Green D1 (5), Red D0 (16)
 
 int ledState=0;
 
@@ -27,9 +32,13 @@ PubSubClient client(espClient);
 
 void setup() {   
   // Set up topic for publishing sensor readings
-  sprintf(g_window1_mqtt_topic, "tele/%x/WINDOW1",  ESP.getChipId());
+  sprintf(g_window1_mqtt_topic, "tele/%x/WINDOW1",  ESP.getChipId());           // CHANGE THIS FOR NEW SENSOR!!!!!!!!!
   
-  pinMode(ledGpioPin, OUTPUT);
+  //pinMode(ledGpioPin, OUTPUT);
+  pinMode(ledBluePin, OUTPUT);
+  pinMode(ledRedPin, OUTPUT);
+  pinMode(ledGreenPin, OUTPUT);
+  pinMode(soundPin, OUTPUT);
   pinMode(sensorPin, INPUT_PULLUP);
   Serial.begin(115200);
   setup_wifi();
@@ -69,12 +78,16 @@ void callback(char* window1, byte* payload, unsigned int length) {\
 //Evaulate the recieved message to do stuff
     if ((rx == "0"))      //&& (vInp13 == HIGH)) //normal operations
     {
-      digitalWrite(ledGpioPin, 0); //Turn the LED output on 
+      digitalWrite(ledBluePin, 0);
+      digitalWrite(ledRedPin, 0); 
+      digitalWrite(ledGreenPin, 1);
       delay(1000);                                     //Wait a second   
     }
     if ((rx == "1"))
     {
-      digitalWrite(ledGpioPin, 1); //Turn the LED output off 
+      digitalWrite(ledBluePin, 1);
+      digitalWrite(ledRedPin, 1); 
+      digitalWrite(ledGreenPin, 0);
       delay(1000);                                     //Wait a second
     }
 
@@ -110,7 +123,7 @@ void reconnect() {
  
       // ... and resubscribe
       client.subscribe(g_window1_mqtt_topic);
-      client.subscribe("command/window1");
+      client.subscribe("command/window1");                                              // CHANGE THIS FOR NEW SENSOR!!!!!!!!!
     } else {
       Serial.print("failed, rc=");
       Serial.print(client.state());
