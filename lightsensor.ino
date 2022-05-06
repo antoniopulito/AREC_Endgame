@@ -19,7 +19,7 @@ char g_light1_mqtt_topic[50];        // MQTT topic for reporting temp1
 
 const char* ssid = "AREC_WL";
 const char* password = "AREC_WL_PASSWD";
-const char* mqtt_server = "192.168.2.101";
+const char* mqtt_server = "192.168.2.102";
 const char* mqtt_user = "eric";
 const char* mqtt_password = "eric";
 const char* mqtt_device_id = "Light_Sensor1";
@@ -278,15 +278,18 @@ void unifiedSensorAPIRead(void)
 /**************************************************************************/
 void loop(void)
 {
+  // reconnect to server if not connected
+  if (!client.connected()) {
+      reconnect();
+    }
+
+  // read and send data
+  advancedRead();
   //simpleRead();
   //unifiedSensorAPIRead();
   
-  advancedRead();
-  if (!client.connected()) {
-    reconnect();
-  }
-  
   client.loop();
+  
   // sampling rate
-  delay(5000);
+  delay(60000); // 1 minute
 }
