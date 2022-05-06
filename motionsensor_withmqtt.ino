@@ -13,7 +13,7 @@ int sensorPin = 13;  // Digital pin D7
 // WiFi & MQTT setup
 const char* ssid = "AREC_WL";
 const char* password = "AREC_WL_PASSWD";
-const char* mqtt_server = "192.168.2.101";
+const char* mqtt_server = "192.168.2.102";
 char g_motion1_mqtt_topic[50];        // MQTT topic for reporting door1
 const char* mqtt_user = "eric";
 const char* mqtt_password = "eric";
