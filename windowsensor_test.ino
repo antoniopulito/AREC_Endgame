@@ -1,5 +1,6 @@
 // don't open serial monitor while running this pleaseee trust me
 
+#include"pitches.h"
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
 
@@ -25,6 +26,56 @@ int ledRedPin = 16;
 // window sensor D5 (14), Sound D3 (0), Blue D2 (4), Green D1 (5), Red D0 (16)
 
 int ledState=0;
+
+//Music
+//DescendingLow
+int melodyLow[] = {
+  NOTE_A2, NOTE_C2, END
+};
+
+int noteDurationsLow[] = {
+  16, 32
+};
+
+//AscendingHigh
+int melodyHigh[] = {
+  NOTE_C5, NOTE_E5, NOTE_G5, NOTE_B5, END
+};
+
+int noteDurationsHigh[] = {
+  8, 8, 8, 16
+};
+
+int speedHigh = 10; //Ascending high speed
+int speedLow = 45; //Ascending low speed
+
+void highMusic(){
+  for (int thisNote = 0; melodyHigh[thisNote]!=-1; thisNote++) {
+      int noteDuration = speedHigh*noteDurationsHigh[thisNote];
+      tone(soundPin, melodyHigh[thisNote],noteDuration*.95);
+      Serial.println(melodyHigh[thisNote]);
+      if(digitalRead(sensorPin) == LOW){
+        noTone(soundPin);
+        return;
+      }
+      delay(noteDuration);
+      noTone(soundPin);
+    }
+}
+
+void lowMusic(){
+  for (int thisNote = 0; melodyLow[thisNote]!=-1; thisNote++) {
+      int noteDuration = speedLow*noteDurationsLow[thisNote];
+      tone(soundPin, melodyLow[thisNote],noteDuration*.95);
+      Serial.println(melodyLow[thisNote]);
+      if(digitalRead(sensorPin) == HIGH){
+        noTone(soundPin);
+        return;
+      }
+      delay(noteDuration);
+      noTone(soundPin);
+    }
+}
 
 
 WiFiClient espClient;
@@ -144,8 +195,9 @@ void loop() {
             }
             client.publish(g_window1_mqtt_topic, "1");
             Serial.println("TX: WindowOpened");
-            RGB_color(255,0,0);
-            delay(1000);  
+            RGB_color(0,255,0);
+            highMusic();
+            delay(10000);  
             
             //client.disconnect();  // Disconnect from MQTT broker
          }
@@ -156,8 +208,9 @@ void loop() {
             }
            client.publish(g_window1_mqtt_topic, "0");
            Serial.println("TX: WindowClosed");
-           RGB_color(0,255,0);
-           delay(1000);
+           RGB_color(255,0,0);
+           lowMusic();
+           delay(10000);
            //client.disconnect();   // Disconnect from MQTT broker
         }
     }
