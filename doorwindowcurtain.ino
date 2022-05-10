@@ -14,7 +14,8 @@ const char* mqtt_device_id = "Window_Sensor1";
 const boolean mqtt_retain = 0; //set to 0 to resolve reconnect LOP issues
 const uint8_t mqtt_qos = 0; //can only be a value of (0, 1, 2)
 char vInp13 = 0;
-String rx;         
+String rx;
+String rx_previous;         
 int rxLength = 0;
 int sensorPin = 14;  
 int soundPin = 15;
@@ -22,6 +23,11 @@ int ledBluePin = 4;
 int ledGreenPin = 5;
 int ledRedPin = 16;
 //int ledGpioPin =4;
+const char* soundonoff = "on";
+boolean playedsound = false;
+unsigned long tnow, tnextoff;
+const int nextTimeEvent = 5000;
+char* color = "off";
 
 // window sensor D5 (14), Sound D8 (15), Blue D2 (4), Green D1 (5), Red D0 (16)
 
@@ -50,31 +56,39 @@ int speedHigh = 10; //Ascending high speed
 int speedLow = 45; //Ascending low speed
 
 void highMusic(){
-  for (int thisNote = 0; melodyHigh[thisNote]!=-1; thisNote++) {
+  if (soundonoff == "on") {
+      for (int thisNote = 0; melodyHigh[thisNote]!=-1; thisNote++) {
       int noteDuration = speedHigh*noteDurationsHigh[thisNote];
       tone(soundPin, melodyHigh[thisNote],noteDuration*.95);
       Serial.println(melodyHigh[thisNote]);
+      /*
       if(digitalRead(sensorPin) == LOW){
         noTone(soundPin);
         return;
       }
+      */
       delay(noteDuration);
       noTone(soundPin);
-    }
+      }
+  }
 }
 
 void lowMusic(){
-  for (int thisNote = 0; melodyLow[thisNote]!=-1; thisNote++) {
+  if (soundonoff == "on") {
+      for (int thisNote = 0; melodyLow[thisNote]!=-1; thisNote++) {
       int noteDuration = speedLow*noteDurationsLow[thisNote];
       tone(soundPin, melodyLow[thisNote],noteDuration*.95);
       Serial.println(melodyLow[thisNote]);
+      /*
       if(digitalRead(sensorPin) == HIGH){
         noTone(soundPin);
         return;
       }
+      */
       delay(noteDuration);
       noTone(soundPin);
-    }
+      }
+  } 
 }
 
 
@@ -83,7 +97,7 @@ PubSubClient client(espClient);
 
 void setup() {   
   // Set up topic for publishing sensor readings
-  sprintf(g_window1_mqtt_topic, "tele/%x/CURTAIN1",  ESP.getChipId());                                  // CHANGE THIS FOR NEW SENSOR!!!!!!!!!
+  sprintf(g_window1_mqtt_topic, "tele/%x/WINDOW1",  ESP.getChipId());                                  // CHANGE THIS FOR NEW SENSOR!!!!!!!!!
   
   pinMode(ledBluePin, OUTPUT);
   pinMode(ledRedPin, OUTPUT);
@@ -94,6 +108,7 @@ void setup() {
   setup_wifi();
   client.setServer(mqtt_server, 1883);
   client.setCallback(callback);
+
 }
 
 
@@ -113,7 +128,7 @@ void setup_wifi() {
   Serial.println(WiFi.localIP());
 }
                                                                                                   // CHANGE THIS FOR NEW SENSOR!!!!!!!!!
-void callback(char* curtain1, byte* payload, unsigned int length) {\                                                          
+void callback(char* window1, byte* payload, unsigned int length) {\                                                          
   Serial.print("RX: ");
   //Convert and clean up the MQTT payload messsage into a String
   rx = String((char *)payload);                    //Payload is a Byte Array, convert to char to load it into the "String" object 
@@ -126,18 +141,10 @@ void callback(char* curtain1, byte* payload, unsigned int length) {\
   Serial.print(rx);                                //Print the recieved message to serial
   Serial.println();
 
-//Evaulate the recieved message to do stuff
-    if ((rx == "0"))      //&& (vInp13 == HIGH)) 
-    {
-      RGB_color(255,0,0);
-      lowMusic();
-                                         
-    }
-    if ((rx == "1"))
-    {
-      RGB_color(255,0,0);
-      lowMusic();
-    }
+  if (rx != rx_previous) {
+    playedsound = false;
+  }
+  rx_previous = rx;
 
 // State initial window position
   if (rx == "Status") //normal operation
@@ -146,12 +153,12 @@ void callback(char* curtain1, byte* payload, unsigned int length) {\
        if (vInp13 == LOW)
          {    
             client.publish(g_window1_mqtt_topic, "1");
-            Serial.println("TX: WindowOpened");
+            Serial.println("TX: Opened");
          }
       else
          {
             client.publish(g_window1_mqtt_topic, "0");
-            Serial.println("TX: WindowClosed");
+            Serial.println("TX: Closed");
         }        
   }
 
@@ -171,7 +178,7 @@ void reconnect() {
  
       // ... and resubscribe
       // client.subscribe(g_window1_mqtt_topic);
-      client.subscribe("command/curtain1");                                                            // CHANGE THIS FOR NEW SENSOR!!!!!!!!!
+      client.subscribe("command/window1");                                                            // CHANGE THIS FOR NEW SENSOR!!!!!!!!!
     } else {
       Serial.print("failed, rc=");
       Serial.print(client.state());
@@ -187,8 +194,27 @@ void loop() {
   if (!client.connected()) {
     reconnect();
   }
+    if (playedsound == false) {
+        //Evaulate the recieved message to do stuff
+        if ((rx == "0") && (vInp13 == HIGH)) 
+        {
+          RGB_color(255,0,0);
+          lowMusic();
+          playedsound = true;
+          color = "red";                                
+        }
+        if ((rx == "1") && (vInp13 == LOW))
+        {
+          RGB_color(255,0,0);
+          lowMusic();
+          playedsound = true;
+          color = "red";
+        }
+    }
+    
+  
   if (digitalRead(sensorPin) != vInp13)
-    {
+  {
        vInp13 = digitalRead(sensorPin);
        if (vInp13 == LOW)
          {    
@@ -196,8 +222,12 @@ void loop() {
                 reconnect();
             }
             client.publish(g_window1_mqtt_topic, "0");
-            Serial.println("TX: WindowClosed");
-
+            Serial.println("TX: Closed");
+            playedsound = false;
+            tnow = millis();
+            tnextoff = tnow + nextTimeEvent;
+            color = "green";
+            
           if ((rx == "0"))
           {
             RGB_color(0,255,0);
@@ -215,7 +245,11 @@ void loop() {
                 reconnect();
             }
            client.publish(g_window1_mqtt_topic, "1");
-           Serial.println("TX: WindowOpened");
+           Serial.println("TX: Opened");
+           playedsound = false;
+           tnow = millis();
+           tnextoff = tnow + nextTimeEvent;
+           color = "green";
 
           if ((rx == "1"))
           {
@@ -228,6 +262,14 @@ void loop() {
            //client.disconnect();   // Disconnect from MQTT broker
         }
     }
+
+  tnow = millis();
+  
+  if ((tnow >= tnextoff) && (color == "green")) {
+  RGB_color(0,0,0);
+  color = "off";
+  }
+      
   client.loop();
   delay(10);  
 }
