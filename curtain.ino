@@ -4,6 +4,9 @@
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
 
+const char* mqtt_subscribe = "command/curtain1";
+const char* mqtt_topic = "tele/%x/CURTAIN1";
+
 const char* ssid = "AREC_WL";
 const char* password = "AREC_WL_PASSWD";
 const char* mqtt_server = "192.168.2.102";
@@ -19,19 +22,25 @@ String rx_previous;
 int rxLength = 0;
 int sensorPin = 14;  
 int soundPin = 15;
-int ledBluePin = 4;
-int ledGreenPin = 5;
-int ledRedPin = 16;
-//int ledGpioPin =4;
+int ledBluePin = 0;
+int ledGreenPin = 4;
+int ledRedPin = 5;
 const char* soundonoff = "on";
 boolean playedsound = false;
-unsigned long tnow, tnextoff;
-const int nextTimeEvent = 5000;
+boolean newmessage = true;
+
+unsigned long tnow, tnextoff, tnextblink, tredchange, tredoff;
+const int nextTimeEvent = 5000;               // time to turn green LED off
+const int nextRedTimeEvent = 15000;           // time to change red LED from fast blink to slow blink
+const int nextRedOff = 45000;                 // time to turn red LED off
+const int nextRedBlink_fast = 500;            // red LED fast blink rate
+const int nextRedBlink_slow_on = 2000;        // red LED slow blink on time
+const int nextRedBlink_slow_off = 3000;       // red LED slow blink off time
 char* color = "off";
-
-// window sensor D5 (14), Sound D8 (15), Blue D2 (4), Green D1 (5), Red D0 (16)
-
 int ledState=0;
+
+// window sensor D5 (14), Sound D8 (15), Blue D3 (0), Green D2 (4), Red D1 (5)
+
 
 //Music
 //DescendingLow
@@ -97,7 +106,7 @@ PubSubClient client(espClient);
 
 void setup() {   
   // Set up topic for publishing sensor readings
-  sprintf(g_window1_mqtt_topic, "tele/%x/DOOR1",  ESP.getChipId());                                  // CHANGE THIS FOR NEW SENSOR!!!!!!!!!
+  sprintf(g_window1_mqtt_topic, mqtt_topic,  ESP.getChipId());                                  
   
   pinMode(ledBluePin, OUTPUT);
   pinMode(ledRedPin, OUTPUT);
@@ -109,6 +118,11 @@ void setup() {
   client.setServer(mqtt_server, 1883);
   client.setCallback(callback);
 
+  pinMode(16, OUTPUT);
+  pinMode(2, OUTPUT);
+  digitalWrite(16, HIGH);            // turn off on-board blue LED
+  digitalWrite(2,HIGH);
+  
 }
 
 
@@ -127,8 +141,8 @@ void setup_wifi() {
   Serial.println("IP address: ");
   Serial.println(WiFi.localIP());
 }
-                                                                                                  // CHANGE THIS FOR NEW SENSOR!!!!!!!!!
-void callback(char* door1, byte* payload, unsigned int length) {\                                                          
+                                                                                                  
+void callback(char* topic, byte* payload, unsigned int length) {\                                                          
   Serial.print("RX: ");
   //Convert and clean up the MQTT payload messsage into a String
   rx = String((char *)payload);                    //Payload is a Byte Array, convert to char to load it into the "String" object 
@@ -143,24 +157,9 @@ void callback(char* door1, byte* payload, unsigned int length) {\
 
   if (rx != rx_previous) {
     playedsound = false;
+    newmessage = true;
   }
   rx_previous = rx;
-
-// State initial window position
-  if (rx == "Status") //normal operation
-  {
-       vInp13 = digitalRead(sensorPin);
-       if (vInp13 == LOW)
-         {    
-            client.publish(g_window1_mqtt_topic, "1");
-            Serial.println("TX: Opened");
-         }
-      else
-         {
-            client.publish(g_window1_mqtt_topic, "0");
-            Serial.println("TX: Closed");
-        }        
-  }
 
 }
 
@@ -178,7 +177,7 @@ void reconnect() {
  
       // ... and resubscribe
       // client.subscribe(g_window1_mqtt_topic);
-      client.subscribe("command/door1");                                                            // CHANGE THIS FOR NEW SENSOR!!!!!!!!!
+      client.subscribe(mqtt_subscribe);                                                            
     } else {
       Serial.print("failed, rc=");
       Serial.print(client.state());
@@ -194,25 +193,36 @@ void loop() {
   if (!client.connected()) {
     reconnect();
   }
-    if (playedsound == false) {
-        //Evaulate the recieved message to do stuff
-        if ((rx == "0") && (vInp13 == LOW)) 
-        {
-          RGB_color(255,0,0);
+
+  // Perform an action when rx changes value
+  if (newmessage == true) {
+      //Evaulate the recieved message to do stuff
+      if (((rx == "0") && (vInp13 == LOW)) || ((rx == "1") && (vInp13 == HIGH)))
+      {
+        RGB_color(255,0,0);
+        color = "red";
+        ledState=1;             // LED is on
+        if (playedsound == false) {
           lowMusic();
           playedsound = true;
-          color = "red";                                
         }
-        if ((rx == "1") && (vInp13 == HIGH))
-        {
-          RGB_color(255,0,0);
-          lowMusic();
-          playedsound = true;
-          color = "red";
-        }
-    }
+        tnow = millis();
+        tredchange = tnow + nextRedTimeEvent;
+        tredoff = tnow + nextRedOff;
+        tnextblink = tnow + nextRedBlink_fast;                                     
+      }
+
+      if ((rx == "2")) {
+        RGB_color(0,0,0);
+        color = "off";
+        ledState=0;             // LED is off
+      }
+
+      newmessage = false;
+  }
+      
     
-  
+  // Read sensor pin and publish when it changes state
   if (digitalRead(sensorPin) != vInp13)
   {
        vInp13 = digitalRead(sensorPin);
@@ -224,20 +234,19 @@ void loop() {
             client.publish(g_window1_mqtt_topic, "0");
             Serial.println("TX: Closed");
             playedsound = false;
-            tnow = millis();
-            tnextoff = tnow + nextTimeEvent;
-            color = "green";
+            newmessage = true;
             
-          if ((rx == "0"))
-          {
-            RGB_color(0,255,0);
-            highMusic();
-          }
+            if ((rx == "0"))
+            {
+              RGB_color(0,255,0);
+              highMusic();
+              
+              tnow = millis();
+              tnextoff = tnow + nextTimeEvent;
+              color = "green";
+              ledState=1;             // LED is on
+            }
             
-            //RGB_color(255,0,0);
-            //lowMusic();
-            
-            //client.disconnect();  // Disconnect from MQTT broker
          }
        else
         {
@@ -247,31 +256,63 @@ void loop() {
            client.publish(g_window1_mqtt_topic, "1");
            Serial.println("TX: Opened");
            playedsound = false;
-           tnow = millis();
-           tnextoff = tnow + nextTimeEvent;
-           color = "green";
-
-          if ((rx == "1"))
-          {
-            RGB_color(0,255,0);
-            highMusic();
-          }
+           newmessage = true;
            
-           //RGB_color(0,255,0);
-           //highMusic();
-           //client.disconnect();   // Disconnect from MQTT broker
+            if ((rx == "1"))
+            {
+              RGB_color(0,255,0);
+              highMusic();
+              
+              tnow = millis();
+              tnextoff = tnow + nextTimeEvent;
+              color = "green";
+              ledState=1;             // LED is on
+            } 
         }
     }
-
-  tnow = millis();
   
+  // Update LED state based upon timestamp (red blinks or green off)
+  tnow = millis();
+
+
+  if ((tnow >= tnextblink) && (color == "red")) {
+      if (tnow <= tredchange) {
+          if (ledState == 1) {
+              RGB_color(0,0,0);
+              ledState=0;             // LED is off
+          } else {
+              RGB_color(255,0,0);
+              ledState=1;             // LED is on
+          }    
+          tnextblink = tnow + nextRedBlink_fast;
+      } 
+      if ((tnow >= tredchange) && (tnow <= tredoff)) {
+          if (ledState == 1) {
+              RGB_color(0,0,0);
+              ledState=0;             // LED is off
+              tnextblink = tnow + nextRedBlink_slow_off;
+          } else {
+              RGB_color(255,0,0);
+              ledState=1;             // LED is on
+              tnextblink = tnow + nextRedBlink_slow_on;
+          }    
+      } 
+      if (tnow >= tredoff) {
+         RGB_color(0,0,0);
+         color = "off";
+         ledState=0;             // LED is off
+      }
+  }
+
   if ((tnow >= tnextoff) && (color == "green")) {
-  RGB_color(0,0,0);
-  color = "off";
+    RGB_color(0,0,0);
+    color = "off";
+    ledState=0;             // LED is off
   }
       
   client.loop();
   delay(10);  
+
 }
 
 
