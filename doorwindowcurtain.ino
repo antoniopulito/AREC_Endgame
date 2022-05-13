@@ -41,7 +41,6 @@ int ledState=0;
 
 // window sensor D5 (14), Sound D8 (15), Blue D3 (0), Green D2 (4), Red D1 (5)
 
-
 //Music
 //DescendingLow
 int melodyLow[] = {
@@ -141,6 +140,7 @@ void setup_wifi() {
   Serial.println("IP address: ");
   Serial.println(WiFi.localIP());
 }
+
                                                                                                   
 void callback(char* topic, byte* payload, unsigned int length) {\                                                          
   Serial.print("RX: ");
@@ -312,7 +312,6 @@ void loop() {
       
   client.loop();
   delay(10);  
-
 }
 
 
