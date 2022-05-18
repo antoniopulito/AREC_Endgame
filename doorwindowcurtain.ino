@@ -3,6 +3,8 @@
 #include"pitches.h"
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
+#include "SoftwareSerial.h"
+#include <DFPlayerMini_Fast.h>
 
 const char* mqtt_subscribe = "command/window1";
 const char* mqtt_topic = "tele/%x/WINDOW1";
@@ -25,8 +27,6 @@ int soundPin = 15;
 int ledBluePin = 0;
 int ledGreenPin = 4;
 int ledRedPin = 5;
-const char* soundonoff = "on";
-boolean playedsound = false;
 boolean newmessage = true;
 
 unsigned long tnow, tnextoff, tnextblink, tredchange, tredoff;
@@ -39,65 +39,22 @@ const int nextRedBlink_slow_off = 3000;       // red LED slow blink off time
 char* color = "off";
 int ledState=0;
 
+
+// SPEAKER SETUP
+SoftwareSerial mySoftwareSerial(13, 12); // RX, TX
+DFPlayerMini_Fast myDFPlayer;
+//void printDetail(uint8_t type, int value);
+int songFlip = -1;
+int lastSwitch = HIGH;
+unsigned long tmusicstop;
+const int goodMusicIndex = 1;
+const int badMusicIndex = 2;
+const int nextMusicStop_good = 15000;       // red LED slow blink off time
+const int nextMusicStop_bad = 3000;       // red LED slow blink off time
+const char* soundonoff = "on";
+boolean playedsound = false;
+
 // window sensor D5 (14), Sound D8 (15), Blue D3 (0), Green D2 (4), Red D1 (5)
-
-//Music
-//DescendingLow
-int melodyLow[] = {
-  NOTE_A2, NOTE_C2, END
-};
-
-int noteDurationsLow[] = {
-  16, 32
-};
-
-//AscendingHigh
-int melodyHigh[] = {
-  NOTE_C5, NOTE_E5, NOTE_G5, NOTE_B5, END
-};
-
-int noteDurationsHigh[] = {
-  8, 8, 8, 16
-};
-
-int speedHigh = 10; //Ascending high speed
-int speedLow = 45; //Ascending low speed
-
-void highMusic(){
-  if (soundonoff == "on") {
-      for (int thisNote = 0; melodyHigh[thisNote]!=-1; thisNote++) {
-      int noteDuration = speedHigh*noteDurationsHigh[thisNote];
-      tone(soundPin, melodyHigh[thisNote],noteDuration*.95);
-      Serial.println(melodyHigh[thisNote]);
-      /*
-      if(digitalRead(sensorPin) == LOW){
-        noTone(soundPin);
-        return;
-      }
-      */
-      delay(noteDuration);
-      noTone(soundPin);
-      }
-  }
-}
-
-void lowMusic(){
-  if (soundonoff == "on") {
-      for (int thisNote = 0; melodyLow[thisNote]!=-1; thisNote++) {
-      int noteDuration = speedLow*noteDurationsLow[thisNote];
-      tone(soundPin, melodyLow[thisNote],noteDuration*.95);
-      Serial.println(melodyLow[thisNote]);
-      /*
-      if(digitalRead(sensorPin) == HIGH){
-        noTone(soundPin);
-        return;
-      }
-      */
-      delay(noteDuration);
-      noTone(soundPin);
-      }
-  } 
-}
 
 
 WiFiClient espClient;
@@ -110,8 +67,8 @@ void setup() {
   pinMode(ledBluePin, OUTPUT);
   pinMode(ledRedPin, OUTPUT);
   pinMode(ledGreenPin, OUTPUT);
-  pinMode(soundPin, OUTPUT);
   pinMode(sensorPin, INPUT_PULLUP);
+  pinMode(switcher, INPUT_PULLUP);
   Serial.begin(115200);
   setup_wifi();
   client.setServer(mqtt_server, 1883);
@@ -121,9 +78,26 @@ void setup() {
   pinMode(2, OUTPUT);
   digitalWrite(16, HIGH);            // turn off on-board blue LED
   digitalWrite(2,HIGH);
-  
+
+  mySoftwareSerial.begin(9600);
+    
+  if (!myDFPlayer.begin(mySoftwareSerial)) {  //Use softwareSerial to communicate with mp3.
+    Serial.println(F("Unable to begin:"));
+    Serial.println(F("1.Please recheck the connection!"));
+    Serial.println(F("2.Please insert the SD card!"));
+    while(true);
+  }
+  Serial.println(F("DFPlayer Mini online."));
+
+  myDFPlayer.volume(12);  //Set volume value. From 0 to 30
 }
 
+
+/**************************************************************************/
+/*
+    WiFi & MQTT Setup
+*/
+/**************************************************************************/
 
 void setup_wifi() {
   delay(10);  // We start by connecting to a WiFi network
@@ -189,11 +163,14 @@ void reconnect() {
 }
 
 
-void loop() {
-  if (!client.connected()) {
-    reconnect();
-  }
+/**************************************************************************/
+/*
+    Read the door sensor
+*/
+/**************************************************************************/
 
+void doorRead(void)
+{  
   // Perform an action when rx changes value
   if (newmessage == true) {
       //Evaulate the recieved message to do stuff
@@ -202,11 +179,13 @@ void loop() {
         RGB_color(255,0,0);
         color = "red";
         ledState=1;             // LED is on
-        if (playedsound == false) {
-          lowMusic();
-          playedsound = true;
-        }
         tnow = millis();
+        if (playedsound == false) {
+          myDFPlayer.play(badMusicIndex);
+          music = "on";
+          playedsound = true;
+          tmusicstop = tnow + nextMusicStop_bad;
+        }
         tredchange = tnow + nextRedTimeEvent;
         tredoff = tnow + nextRedOff;
         tnextblink = tnow + nextRedBlink_fast;                                     
@@ -239,12 +218,14 @@ void loop() {
             if ((rx == "0"))
             {
               RGB_color(0,255,0);
-              highMusic();
+              myDFPlayer.play(goodMusicIndex);
+              music = "on";
               
               tnow = millis();
               tnextoff = tnow + nextTimeEvent;
               color = "green";
               ledState=1;             // LED is on
+              tmusicstop = tnow + nextMusicStop_good;
             }
             
          }
@@ -261,12 +242,14 @@ void loop() {
             if ((rx == "1"))
             {
               RGB_color(0,255,0);
-              highMusic();
+              myDFPlayer.play(goodMusicIndex);
+              music = "on";
               
               tnow = millis();
               tnextoff = tnow + nextTimeEvent;
               color = "green";
               ledState=1;             // LED is on
+              tmusicstop = tnow + nextMusicStop_good;
             } 
         }
     }
@@ -309,9 +292,11 @@ void loop() {
     color = "off";
     ledState=0;             // LED is off
   }
-      
-  client.loop();
-  delay(10);  
+
+  if ((tnow >= tmusicstop) && (music=="on")) {
+    myDFPlayer.stop();
+    music = "off";
+  }
 }
 
 
@@ -321,4 +306,87 @@ void RGB_color(int red_light_value, int green_light_value, int blue_light_value)
   analogWrite(ledRedPin, red_light_value);
   analogWrite(ledGreenPin, green_light_value);
   analogWrite(ledBluePin, blue_light_value);
+}
+
+
+
+/**************************************************************************/
+/*
+    Speaker Setup
+*/
+/**************************************************************************/
+
+//Music
+
+void printDetail(uint8_t type, int value){
+  switch (type) {
+    case TimeOut:
+      Serial.println(F("Time Out!"));
+      break;
+    case WrongStack:
+      Serial.println(F("Stack Wrong!"));
+      break;
+    case DFPlayerCardInserted:
+      Serial.println(F("Card Inserted!"));
+      break;
+    case DFPlayerCardRemoved:
+      Serial.println(F("Card Removed!"));
+      break;
+    case DFPlayerCardOnline:
+      Serial.println(F("Card Online!"));
+      break;
+    case DFPlayerPlayFinished:
+      Serial.print(F("Number:"));
+      Serial.print(value);
+      Serial.println(F(" Play Finished!"));
+      break;
+    case DFPlayerError:
+      Serial.print(F("DFPlayerError:"));
+      switch (value) {
+        case Busy:
+          Serial.println(F("Card not found"));
+          break;
+        case Sleeping:
+          Serial.println(F("Sleeping"));
+          break;
+        case SerialWrongStack:
+          Serial.println(F("Get Wrong Stack"));
+          break;
+        case CheckSumNotMatch:
+          Serial.println(F("Check Sum Not Match"));
+          break;
+        case FileIndexOut:
+          Serial.println(F("File Index Out of Bound"));
+          break;
+        case FileMismatch:
+          Serial.println(F("Cannot Find File"));
+          break;
+        case Advertise:
+          Serial.println(F("In Advertise"));
+          break;
+        default:
+          break;
+      }
+      break;
+    default:
+      break;
+  }
+}
+
+
+/**************************************************************************/
+/*
+    Arduino loop function, called once 'setup' is complete 
+*/
+/**************************************************************************/
+
+void loop() {
+  if (!client.connected()) {
+    reconnect();
+  }
+
+  doorRead();
+      
+  client.loop();
+  delay(10);  
 }

@@ -136,9 +136,9 @@ void loop() {
   client.loop();    // Process any outstanding MQTT messages
 
   updatePIRReadings();
+  delay(5000);
   updateDHTReadings();
-
-  delay(10000);
+  delay(5000);
   
 }
 

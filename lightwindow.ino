@@ -6,7 +6,8 @@
 #include <Adafruit_Sensor.h>
 #include "Adafruit_TSL2591.h"
 #include "SoftwareSerial.h"
-#include "DFRobotDFPlayerMini.h"
+//#include "DFRobotDFPlayerMini.h"
+#include <DFPlayerMini_Fast.h>
 
 
 /* MQTT */
@@ -44,7 +45,7 @@ PubSubClient client(espClient);
 char vInp13 = 0;
 String rx_previous;         
 int sensorPin = 14;  
-int ledBluePin = 16;
+int ledBluePin = 16;    //16 (D0), 10 (SD3)
 int ledGreenPin = 0;
 int ledRedPin = 15;
 boolean newmessage = true;
@@ -61,19 +62,19 @@ int ledState=0;
 
 
 // SPEAKER SETUP
-#define switcher 5
-SoftwareSerial mySoftwareSerial(10, 11); // RX, TX
-DFRobotDFPlayerMini myDFPlayer;
-void printDetail(uint8_t type, int value);
+SoftwareSerial mySoftwareSerial(13, 12); // RX, TX (D7,D6)
+DFPlayerMini_Fast myDFPlayer;
+//void printDetail(uint8_t type, int value);
 int songFlip = -1;
 int lastSwitch = HIGH;
 unsigned long tmusicstop;
-const int goodMusicIndex = 1;
+const int goodMusicIndex = 3;
 const int badMusicIndex = 2;
-const int nextMusicStop_good = 15000;       // red LED slow blink off time
+const int nextMusicStop_good = 5000;       // red LED slow blink off time
 const int nextMusicStop_bad = 3000;       // red LED slow blink off time
 const char* soundonoff = "on";
 boolean playedsound = false;
+char* music = "off";
 
 // window sensor D5 (14), Sound D8 (15), Blue D3 (0), Green D2 (4) - 9 now, Red D1 (5) - 10 now
 
@@ -144,11 +145,7 @@ void setup(void)
   pinMode(ledBluePin, OUTPUT);
   pinMode(ledRedPin, OUTPUT);
   pinMode(ledGreenPin, OUTPUT);
-  // pinMode(soundPin, OUTPUT);
   pinMode(sensorPin, INPUT_PULLUP);
-  pinMode(switcher, INPUT_PULLUP);
-
-  myDFPlayer.volume(12);  //Set volume value. From 0 to 30
 
   Serial.begin(115200);
 
@@ -182,7 +179,8 @@ void setup(void)
     while(true);
   }
   Serial.println(F("DFPlayer Mini online."));
-  Serial.println(myDFPlayer.readFileCounts());
+
+  myDFPlayer.volume(5);  //Set volume value. From 0 to 30
   
 }
 
@@ -343,6 +341,7 @@ void windowRead(void)
         tnow = millis();
         if (playedsound == false) {
           myDFPlayer.play(badMusicIndex);
+          music = "on";
           playedsound = true;
           tmusicstop = tnow + nextMusicStop_bad;
         }
@@ -379,6 +378,7 @@ void windowRead(void)
             {
               RGB_color(0,255,0);
               myDFPlayer.play(goodMusicIndex);
+              music = "on";
               
               tnow = millis();
               tnextoff = tnow + nextTimeEvent;
@@ -402,6 +402,7 @@ void windowRead(void)
             {
               RGB_color(0,255,0);
               myDFPlayer.play(goodMusicIndex);
+              music = "on";
               
               tnow = millis();
               tnextoff = tnow + nextTimeEvent;
@@ -451,8 +452,9 @@ void windowRead(void)
     ledState=0;             // LED is off
   }
 
-  if (tnow >= tmusicstop) {
+  if ((tnow >= tmusicstop) && (music=="on")) {
     myDFPlayer.stop();
+    music = "off";
   }
 
 }
@@ -473,7 +475,7 @@ void RGB_color(int red_light_value, int green_light_value, int blue_light_value)
 /**************************************************************************/
 
 //Music
-
+/*
 void printDetail(uint8_t type, int value){
   switch (type) {
     case TimeOut:
@@ -528,7 +530,7 @@ void printDetail(uint8_t type, int value){
       break;
   }
 }
-
+*/
 
 /**************************************************************************/
 /*
@@ -543,6 +545,7 @@ void loop(void)
     }
 
   tnow = millis();
+  
   if (tnow >= tnextread) {
     // read and send data
     advancedRead();
@@ -555,6 +558,4 @@ void loop(void)
   
   client.loop();
   
-  // sampling rate
-  //delay(60000); // 1 minute
 }
