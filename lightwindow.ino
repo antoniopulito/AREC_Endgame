@@ -5,7 +5,8 @@
 #include <Wire.h>
 #include <Adafruit_Sensor.h>
 #include "Adafruit_TSL2591.h"
-#include"pitches.h"
+#include "SoftwareSerial.h"
+#include "DFRobotDFPlayerMini.h"
 
 
 /* MQTT */
@@ -39,16 +40,13 @@ WiFiClient espClient;
 PubSubClient client(espClient);
 
 
-// SENSOR SETUP
+// SENSOR & LED SETUP
 char vInp13 = 0;
 String rx_previous;         
 int sensorPin = 14;  
-int soundPin = 15;
 int ledBluePin = 16;
 int ledGreenPin = 0;
 int ledRedPin = 15;
-const char* soundonoff = "on";
-boolean playedsound = false;
 boolean newmessage = true;
 unsigned long tnow, tnextread, tnextoff, tnextblink, tredchange, tredoff;
 const int nextReading = 60000;      // sampling rate for light sensor reading
@@ -60,6 +58,22 @@ const int nextRedBlink_slow_on = 2000;        // red LED slow blink on time
 const int nextRedBlink_slow_off = 3000;       // red LED slow blink off time
 char* color = "off";
 int ledState=0;
+
+
+// SPEAKER SETUP
+#define switcher 5
+SoftwareSerial mySoftwareSerial(10, 11); // RX, TX
+DFRobotDFPlayerMini myDFPlayer;
+void printDetail(uint8_t type, int value);
+int songFlip = -1;
+int lastSwitch = HIGH;
+unsigned long tmusicstop;
+const int goodMusicIndex = 1;
+const int badMusicIndex = 2;
+const int nextMusicStop_good = 15000;       // red LED slow blink off time
+const int nextMusicStop_bad = 3000;       // red LED slow blink off time
+const char* soundonoff = "on";
+boolean playedsound = false;
 
 // window sensor D5 (14), Sound D8 (15), Blue D3 (0), Green D2 (4) - 9 now, Red D1 (5) - 10 now
 
@@ -130,10 +144,13 @@ void setup(void)
   pinMode(ledBluePin, OUTPUT);
   pinMode(ledRedPin, OUTPUT);
   pinMode(ledGreenPin, OUTPUT);
-  pinMode(soundPin, OUTPUT);
+  // pinMode(soundPin, OUTPUT);
   pinMode(sensorPin, INPUT_PULLUP);
+  pinMode(switcher, INPUT_PULLUP);
 
-  Serial.begin(9600);
+  myDFPlayer.volume(12);  //Set volume value. From 0 to 30
+
+  Serial.begin(115200);
 
   setup_wifi();
   client.setServer(mqtt_server, 1883);
@@ -155,6 +172,18 @@ void setup(void)
   configureSensor();
 
   // Now we're ready to get readings ... move on to loop()!
+
+  mySoftwareSerial.begin(9600);
+    
+  if (!myDFPlayer.begin(mySoftwareSerial)) {  //Use softwareSerial to communicate with mp3.
+    Serial.println(F("Unable to begin:"));
+    Serial.println(F("1.Please recheck the connection!"));
+    Serial.println(F("2.Please insert the SD card!"));
+    while(true);
+  }
+  Serial.println(F("DFPlayer Mini online."));
+  Serial.println(myDFPlayer.readFileCounts());
+  
 }
 
 // WIFI SETUP
@@ -220,25 +249,6 @@ void reconnect() {
   }
 }
 
-
-/*
-void reconnect() {
-  char mqtt_client_id[30];
-  sprintf(mqtt_client_id, "esp8266-%x", ESP.getChipId());
-
-  // Loop until we're reconnected
-  Serial.print("Connecting to MQTT Broker");
-  while (!client.connected()){
-    Serial.print(".");
-    if (client.connect(mqtt_client_id, mqtt_user, mqtt_password)){
-      Serial.println("Connected");
-      sprintf(g_mqtt_message_buffer, "Device %s starting up", mqtt_client_id);
-    } else{
-      delay(5000);
-    }
-  }
-}
-*/
 
 /**************************************************************************/
 /*
@@ -330,11 +340,12 @@ void windowRead(void)
         RGB_color(255,0,0);
         color = "red";
         ledState=1;             // LED is on
-        if (playedsound == false) {
-          lowMusic();
-          playedsound = true;
-        }
         tnow = millis();
+        if (playedsound == false) {
+          myDFPlayer.play(badMusicIndex);
+          playedsound = true;
+          tmusicstop = tnow + nextMusicStop_bad;
+        }
         tredchange = tnow + nextRedTimeEvent;
         tredoff = tnow + nextRedOff;
         tnextblink = tnow + nextRedBlink_fast;                                     
@@ -367,12 +378,13 @@ void windowRead(void)
             if ((rx == "0"))
             {
               RGB_color(0,255,0);
-              highMusic();
+              myDFPlayer.play(goodMusicIndex);
               
               tnow = millis();
               tnextoff = tnow + nextTimeEvent;
               color = "green";
               ledState=1;             // LED is on
+              tmusicstop = tnow + nextMusicStop_good;
             }
             
          }
@@ -389,12 +401,13 @@ void windowRead(void)
             if ((rx == "1"))
             {
               RGB_color(0,255,0);
-              highMusic();
+              myDFPlayer.play(goodMusicIndex);
               
               tnow = millis();
               tnextoff = tnow + nextTimeEvent;
               color = "green";
               ledState=1;             // LED is on
+              tmusicstop = tnow + nextMusicStop_good;
             } 
         }
     }
@@ -438,6 +451,10 @@ void windowRead(void)
     ledState=0;             // LED is off
   }
 
+  if (tnow >= tmusicstop) {
+    myDFPlayer.stop();
+  }
+
 }
 
 
@@ -456,68 +473,66 @@ void RGB_color(int red_light_value, int green_light_value, int blue_light_value)
 /**************************************************************************/
 
 //Music
-//DescendingLow
-int melodyLow[] = {
-  NOTE_A2, NOTE_C2, END
-};
 
-int noteDurationsLow[] = {
-  16, 32
-};
-
-//AscendingHigh
-int melodyHigh[] = {
-  NOTE_C5, NOTE_E5, NOTE_G5, NOTE_B5, END
-};
-
-int noteDurationsHigh[] = {
-  8, 8, 8, 16
-};
-
-int speedHigh = 10; //Ascending high speed
-int speedLow = 45; //Ascending low speed
-
-void highMusic(){
-  if (soundonoff == "on") {
-      for (int thisNote = 0; melodyHigh[thisNote]!=-1; thisNote++) {
-      int noteDuration = speedHigh*noteDurationsHigh[thisNote];
-      tone(soundPin, melodyHigh[thisNote],noteDuration*.95);
-      Serial.println(melodyHigh[thisNote]);
-      /*
-      if(digitalRead(sensorPin) == LOW){
-        noTone(soundPin);
-        return;
+void printDetail(uint8_t type, int value){
+  switch (type) {
+    case TimeOut:
+      Serial.println(F("Time Out!"));
+      break;
+    case WrongStack:
+      Serial.println(F("Stack Wrong!"));
+      break;
+    case DFPlayerCardInserted:
+      Serial.println(F("Card Inserted!"));
+      break;
+    case DFPlayerCardRemoved:
+      Serial.println(F("Card Removed!"));
+      break;
+    case DFPlayerCardOnline:
+      Serial.println(F("Card Online!"));
+      break;
+    case DFPlayerPlayFinished:
+      Serial.print(F("Number:"));
+      Serial.print(value);
+      Serial.println(F(" Play Finished!"));
+      break;
+    case DFPlayerError:
+      Serial.print(F("DFPlayerError:"));
+      switch (value) {
+        case Busy:
+          Serial.println(F("Card not found"));
+          break;
+        case Sleeping:
+          Serial.println(F("Sleeping"));
+          break;
+        case SerialWrongStack:
+          Serial.println(F("Get Wrong Stack"));
+          break;
+        case CheckSumNotMatch:
+          Serial.println(F("Check Sum Not Match"));
+          break;
+        case FileIndexOut:
+          Serial.println(F("File Index Out of Bound"));
+          break;
+        case FileMismatch:
+          Serial.println(F("Cannot Find File"));
+          break;
+        case Advertise:
+          Serial.println(F("In Advertise"));
+          break;
+        default:
+          break;
       }
-      */
-      delay(noteDuration);
-      noTone(soundPin);
-      }
+      break;
+    default:
+      break;
   }
-}
-
-void lowMusic(){
-  if (soundonoff == "on") {
-      for (int thisNote = 0; melodyLow[thisNote]!=-1; thisNote++) {
-      int noteDuration = speedLow*noteDurationsLow[thisNote];
-      tone(soundPin, melodyLow[thisNote],noteDuration*.95);
-      Serial.println(melodyLow[thisNote]);
-      /*
-      if(digitalRead(sensorPin) == HIGH){
-        noTone(soundPin);
-        return;
-      }
-      */
-      delay(noteDuration);
-      noTone(soundPin);
-      }
-  } 
 }
 
 
 /**************************************************************************/
 /*
-    Arduino loop function, called once 'setup' is complete (your own code
-    should go here)
+    Arduino loop function, called once 'setup' is complete 
 */
 /**************************************************************************/
 void loop(void)
