@@ -45,7 +45,7 @@ PubSubClient client(espClient);
 char vInp13 = 0;
 String rx_previous;         
 int sensorPin = 14;  
-int ledBluePin = 16;    //16 (D0), 10 (SD3)
+int ledBluePin = 16;    
 int ledGreenPin = 0;
 int ledRedPin = 15;
 boolean newmessage = true;
@@ -60,6 +60,7 @@ const int nextRedBlink_slow_off = 3000;       // red LED slow blink off time
 char* color = "off";
 int ledState=0;
 
+// window sensor D5 (14), Sound D8 (15), Blue D0 (16), Green D3 (0), Red D8 (15)
 
 // SPEAKER SETUP
 SoftwareSerial mySoftwareSerial(13, 12); // RX, TX (D7,D6)
@@ -70,13 +71,12 @@ int lastSwitch = HIGH;
 unsigned long tmusicstop;
 const int goodMusicIndex = 3;
 const int badMusicIndex = 2;
-const int nextMusicStop_good = 5000;       // red LED slow blink off time
-const int nextMusicStop_bad = 3000;       // red LED slow blink off time
-const char* soundonoff = "on";
+const int nextMusicStop_good = 5000;       
+const int nextMusicStop_bad = 3000;       
+const char* soundonoff = "on";              // change this parameter to mute or unmute the speaker
 boolean playedsound = false;
 char* music = "off";
-
-// window sensor D5 (14), Sound D8 (15), Blue D3 (0), Green D2 (4) - 9 now, Red D1 (5) - 10 now
+ 
 
 /****************************************************************************/
 
@@ -339,7 +339,7 @@ void windowRead(void)
         color = "red";
         ledState=1;             // LED is on
         tnow = millis();
-        if (playedsound == false) {
+        if ((playedsound == false) && (soundonoff == "on")) {
           myDFPlayer.play(badMusicIndex);
           music = "on";
           playedsound = true;
@@ -376,15 +376,17 @@ void windowRead(void)
             
             if ((rx == "0"))
             {
-              RGB_color(0,255,0);
-              myDFPlayer.play(goodMusicIndex);
-              music = "on";
-              
               tnow = millis();
+              RGB_color(0,255,0);
+              if (soundonoff == "on") {
+                myDFPlayer.play(goodMusicIndex);
+                music = "on";
+                tmusicstop = tnow + nextMusicStop_good;
+              }
+          
               tnextoff = tnow + nextTimeEvent;
               color = "green";
               ledState=1;             // LED is on
-              tmusicstop = tnow + nextMusicStop_good;
             }
             
          }
@@ -400,15 +402,17 @@ void windowRead(void)
            
             if ((rx == "1"))
             {
-              RGB_color(0,255,0);
-              myDFPlayer.play(goodMusicIndex);
-              music = "on";
-              
               tnow = millis();
+              RGB_color(0,255,0);
+              if (soundonoff == "on") {
+                myDFPlayer.play(goodMusicIndex);
+                music = "on";
+                tmusicstop = tnow + nextMusicStop_good;
+              }
+              
               tnextoff = tnow + nextTimeEvent;
               color = "green";
               ledState=1;             // LED is on
-              tmusicstop = tnow + nextMusicStop_good;
             } 
         }
     }

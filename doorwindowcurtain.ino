@@ -6,12 +6,12 @@
 #include "SoftwareSerial.h"
 #include <DFPlayerMini_Fast.h>
 
-const char* mqtt_subscribe = "command/window1";
-const char* mqtt_topic = "tele/%x/WINDOW1";
+const char* mqtt_subscribe = "command/door1";
+const char* mqtt_topic = "tele/%x/DOOR1";
 
 const char* ssid = "AREC_WL";
 const char* password = "AREC_WL_PASSWD";
-const char* mqtt_server = "192.168.2.102";
+const char* mqtt_server = "192.168.2.101";
 char g_window1_mqtt_topic[50];        // MQTT topic for reporting window1          
 const char* mqtt_user = "eric";
 const char* mqtt_password = "eric";
@@ -23,7 +23,6 @@ String rx;
 String rx_previous;         
 int rxLength = 0;
 int sensorPin = 14;  
-int soundPin = 15;
 int ledBluePin = 0;
 int ledGreenPin = 4;
 int ledRedPin = 5;
@@ -47,14 +46,15 @@ DFPlayerMini_Fast myDFPlayer;
 int songFlip = -1;
 int lastSwitch = HIGH;
 unsigned long tmusicstop;
-const int goodMusicIndex = 1;
-const int badMusicIndex = 2;
-const int nextMusicStop_good = 15000;       // red LED slow blink off time
-const int nextMusicStop_bad = 3000;       // red LED slow blink off time
-const char* soundonoff = "on";
+const int goodMusicIndex = 3;
+const int badMusicIndex = 5;
+const int nextMusicStop_good = 4000;       
+const int nextMusicStop_bad = 2000;       
+const char* soundonoff = "on";        // change this parameter to mute or unmute the speaker
 boolean playedsound = false;
+char* music = "off";
 
-// window sensor D5 (14), Sound D8 (15), Blue D3 (0), Green D2 (4), Red D1 (5)
+// window sensor D5 (14), Blue D3 (0), Green D2 (4), Red D1 (5)
 
 
 WiFiClient espClient;
@@ -68,7 +68,6 @@ void setup() {
   pinMode(ledRedPin, OUTPUT);
   pinMode(ledGreenPin, OUTPUT);
   pinMode(sensorPin, INPUT_PULLUP);
-  pinMode(switcher, INPUT_PULLUP);
   Serial.begin(115200);
   setup_wifi();
   client.setServer(mqtt_server, 1883);
@@ -180,7 +179,7 @@ void doorRead(void)
         color = "red";
         ledState=1;             // LED is on
         tnow = millis();
-        if (playedsound == false) {
+        if ((playedsound == false) && (soundonoff == "on")) {
           myDFPlayer.play(badMusicIndex);
           music = "on";
           playedsound = true;
@@ -217,15 +216,17 @@ void doorRead(void)
             
             if ((rx == "0"))
             {
-              RGB_color(0,255,0);
-              myDFPlayer.play(goodMusicIndex);
-              music = "on";
-              
               tnow = millis();
+              RGB_color(0,255,0);
+              if (soundonoff == "on") {
+                myDFPlayer.play(goodMusicIndex);
+                music = "on";
+                tmusicstop = tnow + nextMusicStop_good;
+              }
+          
               tnextoff = tnow + nextTimeEvent;
               color = "green";
               ledState=1;             // LED is on
-              tmusicstop = tnow + nextMusicStop_good;
             }
             
          }
@@ -241,15 +242,17 @@ void doorRead(void)
            
             if ((rx == "1"))
             {
-              RGB_color(0,255,0);
-              myDFPlayer.play(goodMusicIndex);
-              music = "on";
-              
               tnow = millis();
+              RGB_color(0,255,0);
+              if (soundonoff == "on") {
+                myDFPlayer.play(goodMusicIndex);
+                music = "on";
+                tmusicstop = tnow + nextMusicStop_good;
+              }
+              
               tnextoff = tnow + nextTimeEvent;
               color = "green";
               ledState=1;             // LED is on
-              tmusicstop = tnow + nextMusicStop_good;
             } 
         }
     }
@@ -318,6 +321,7 @@ void RGB_color(int red_light_value, int green_light_value, int blue_light_value)
 
 //Music
 
+/*
 void printDetail(uint8_t type, int value){
   switch (type) {
     case TimeOut:
@@ -372,6 +376,7 @@ void printDetail(uint8_t type, int value){
       break;
   }
 }
+*/
 
 
 /**************************************************************************/
