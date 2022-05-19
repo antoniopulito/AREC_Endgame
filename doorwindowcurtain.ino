@@ -4,9 +4,13 @@
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
 #include "SoftwareSerial.h"
-#include <DFPlayerMini_Fast.h>
+#include "DFRobotDFPlayerMini.h"
+//#include <DFPlayerMini_Fast.h>
+
 
 const char* mqtt_subscribe = "command/door1";
+const char* mqtt_subscribe_sound = "UI/notifications";
+const char* mqtt_subscribe_volume = "UI/volume";
 const char* mqtt_topic = "tele/%x/DOOR1";
 
 const char* ssid = "AREC_WL";
@@ -41,7 +45,8 @@ int ledState=0;
 
 // SPEAKER SETUP
 SoftwareSerial mySoftwareSerial(13, 12); // RX, TX
-DFPlayerMini_Fast myDFPlayer;
+//DFPlayerMini_Fast myDFPlayer;
+DFRobotDFPlayerMini myDFPlayer;
 //void printDetail(uint8_t type, int value);
 int songFlip = -1;
 int lastSwitch = HIGH;
@@ -50,9 +55,11 @@ const int goodMusicIndex = 3;
 const int badMusicIndex = 5;
 const int nextMusicStop_good = 4000;       
 const int nextMusicStop_bad = 2000;       
-const char* soundonoff = "on";        // change this parameter to mute or unmute the speaker
+char* soundonoff_bad = "on";              // change this parameter to mute or unmute the speaker
+char* soundonoff_good = "on";              // change this parameter to mute or unmute the speaker
 boolean playedsound = false;
 char* music = "off";
+int volume = 20;                          // value from 0 to 30 
 
 // window sensor D5 (14), Blue D3 (0), Green D2 (4), Red D1 (5)
 
@@ -88,7 +95,7 @@ void setup() {
   }
   Serial.println(F("DFPlayer Mini online."));
 
-  myDFPlayer.volume(12);  //Set volume value. From 0 to 30
+  myDFPlayer.volume(volume);  //Set initial volume value. From 0 to 30
 }
 
 
@@ -128,12 +135,33 @@ void callback(char* topic, byte* payload, unsigned int length) {\
   Serial.print(rx);                                //Print the recieved message to serial
   Serial.println();
 
-  if (rx != rx_previous) {
-    playedsound = false;
-    newmessage = true;
+  if ((rx == "0") || (rx == "1") || (rx == "2")) {
+    if (rx != rx_previous) {
+      playedsound = false;
+      newmessage = true;
+    }
+    rx_previous = rx;
   }
-  rx_previous = rx;
+  
+  if (rx == "Full") {
+    soundonoff_bad = "on";              // change this parameter to mute or unmute the speaker
+    soundonoff_good = "on";
+  }
+  
+  if (rx == "Success") {
+    soundonoff_bad = "off";              // change this parameter to mute or unmute the speaker
+    soundonoff_good = "on";
+  }
+  if (rx == "Off") {
+    soundonoff_bad = "off";              // change this parameter to mute or unmute the speaker
+    soundonoff_good = "off";
+  }
 
+  if (rx.toInt() >= 10){
+    volume = map(rx.toInt(),0,100,0,25);
+    myDFPlayer.volume(volume);
+  }
+  
 }
 
 
@@ -150,7 +178,9 @@ void reconnect() {
  
       // ... and resubscribe
       // client.subscribe(g_window1_mqtt_topic);
-      client.subscribe(mqtt_subscribe);                                                            
+      client.subscribe(mqtt_subscribe); 
+      client.subscribe(mqtt_subscribe_sound); 
+      client.subscribe(mqtt_subscribe_volume);                                                          
     } else {
       Serial.print("failed, rc=");
       Serial.print(client.state());
@@ -173,24 +203,31 @@ void doorRead(void)
   // Perform an action when rx changes value
   if (newmessage == true) {
       //Evaulate the recieved message to do stuff
-      if (((rx == "0") && (vInp13 == HIGH)) || ((rx == "1") && (vInp13 == LOW)))
+      if (((rx_previous == "0") && (vInp13 == HIGH)) || ((rx_previous == "1") && (vInp13 == LOW)))
       {
         RGB_color(255,0,0);
         color = "red";
         ledState=1;             // LED is on
         tnow = millis();
-        if ((playedsound == false) && (soundonoff == "on")) {
-          myDFPlayer.play(badMusicIndex);
-          music = "on";
-          playedsound = true;
-          tmusicstop = tnow + nextMusicStop_bad;
+        if (playedsound == false) 
+        { 
+          if (soundonoff_bad == "on") {
+            myDFPlayer.play(badMusicIndex);
+            music = "on";
+            playedsound = true;
+            tmusicstop = tnow + nextMusicStop_bad;
+          }
+          if (soundonoff_bad == "off") {
+            myDFPlayer.stop();
+            music = "off";
+          }
         }
         tredchange = tnow + nextRedTimeEvent;
         tredoff = tnow + nextRedOff;
         tnextblink = tnow + nextRedBlink_fast;                                     
       }
 
-      if ((rx == "2")) {
+      if ((rx_previous == "2")) {
         RGB_color(0,0,0);
         color = "off";
         ledState=0;             // LED is off
@@ -214,11 +251,11 @@ void doorRead(void)
             playedsound = false;
             newmessage = true;
             
-            if ((rx == "0"))
+            if ((rx_previous == "0"))
             {
               tnow = millis();
               RGB_color(0,255,0);
-              if (soundonoff == "on") {
+              if (soundonoff_good == "on") {
                 myDFPlayer.play(goodMusicIndex);
                 music = "on";
                 tmusicstop = tnow + nextMusicStop_good;
@@ -240,11 +277,11 @@ void doorRead(void)
            playedsound = false;
            newmessage = true;
            
-            if ((rx == "1"))
+            if ((rx_previous == "1"))
             {
               tnow = millis();
               RGB_color(0,255,0);
-              if (soundonoff == "on") {
+              if (soundonoff_good == "on") {
                 myDFPlayer.play(goodMusicIndex);
                 music = "on";
                 tmusicstop = tnow + nextMusicStop_good;
@@ -300,6 +337,7 @@ void doorRead(void)
     myDFPlayer.stop();
     music = "off";
   }
+
 }
 
 
