@@ -6,6 +6,7 @@
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
 #include "DHT.h"
+#include "Adafruit_CCS811.h"
 
 /* Global Variables */
 #define   ESP_STATE_ASLEEP    0
@@ -20,15 +21,10 @@ float     dht_value         = 0;    // value of reading
 #define   SERIAL_BAUD_RATE    115200          // Speed for USB serial console
 #define   MODE_BUTTON_PIN   D3    // GPIO0 Pushbutton to GND
 #define   ESP_WAKEUP_PIN    D0    // To reset ESP8266 after deep sleep
-uint32_t    esp_report_period   =   30;         // seconds between reports
 
 /* MQTT */
 char g_mqtt_message_buffer[150];    // General purpose buffer for MQTT messages
 char g_command_topic[50];           // MQTT topic for receiving commands
-const char* mqtt_broker       = "192.168.2.101";    // IP address of your MQTT broker
-#define REPORT_MQTT_SEPERATE  true              // Report each value to its own topic
-#define REPORT_MQTT_JSON      false              // Report all value in a JSON message
-const char* status_topic      = "events";       // MQTT topic to report startup
 
 #if REPORT_MQTT_SEPERATE
 char g_temp1_mqtt_topic[50];        // MQTT topic for reporting temp1
@@ -37,14 +33,14 @@ char g_temp1_mqtt_topic[50];        // MQTT topic for reporting temp1
 char g_mqtt_json_topic[50];         // MQTT topic for reporting all values using JSON
 #endif
 char g_motion1_mqtt_topic[50];        // MQTT topic for reporting motion1
+char g_CO2_mqtt_topic[50];            // MQTT topic for reporting CO2
+char g_TVOC_mqtt_topic[50];           // MQTT topic for reporting TVOC
 
 // WiFi
-const char* ssid      = "AREC_WL";          // WiFi SSID
-const char* password  = "AREC_WL_PASSWD";   // WiFi Password
 #define WIFI_CONNECT_INTERVAL 500   // Wait 500ms intervals for wifi connection
 #define WIFI_CONNECT_MAX_ATTEMPTS 10// Number of attempts/intervals to wait
 
-// DHT Setup
+// DHT Setup 
 #define DHTPIN 2                    // actually D4 pin on ESP8266
 #define DHTTYPE DHT22               // DHT 22  (AM2302)
 DHT dht(DHTPIN, DHTTYPE);
@@ -52,6 +48,11 @@ DHT dht(DHTPIN, DHTTYPE);
 // PIR Setup
 int StatusPin = 12;  // Digital pin D6
 int sensorPin = 13;  // Digital pin D7
+
+// CCS811 Setup (Air Quality)
+Adafruit_CCS811 ccs;
+int CO2_data;
+int TVOC_data;
 
 // General
 uint32_t g_device_id;
@@ -62,6 +63,8 @@ bool initWifi();
 void reconnectMqtt();
 void updateDHTReadings();
 void reportToMqtt();
+void updatePIRReadings();
+void updateCCS811Readings();
 
 /* Instantiate Global Objects */
 // MQTT
@@ -71,7 +74,7 @@ PubSubClient client(esp_client);
 
 /*----------SETUP------------*/
 void setup()  {
-  Serial.begin(115200);
+  Serial.begin(SERIAL_BAUD_RATE);
   Serial.println();
   Serial.println("ESP Starting Up");
 
@@ -86,6 +89,8 @@ void setup()  {
 
   // Set up topics for publishing sensor readings
   sprintf(g_motion1_mqtt_topic, "tele/%x/MOTION1",  ESP.getChipId());
+  sprintf(g_CO2_mqtt_topic, "tele/%x/CO2",  ESP.getChipId());
+  sprintf(g_TVOC_mqtt_topic, "tele/%x/TVOC",  ESP.getChipId());
   sprintf(g_command_topic,  "cmnd/%x/COMMAND",  ESP.getChipId());   // For receiving commands
   #if REPORT_MQTT_SEPERATE
   sprintf(g_temp1_mqtt_topic, "tele/%x/TEMP1",  ESP.getChipId());   // Data from DHT
@@ -137,6 +142,8 @@ void loop() {
 
   updatePIRReadings();
   delay(5000);
+  //updateCCS811Readings();
+  //delay(5000);
   updateDHTReadings();
   delay(5000);
   
@@ -186,6 +193,28 @@ void updatePIRReadings(){
     }
 }
 
+/* Update CCS811 reading */
+void updateCCS811Readings() {
+  if(ccs.available()){
+    String message_string_CC811;
+    
+    CO2_data = ccs.geteCO2();
+    TVOC_data = ccs.getTVOC();
+    
+    Serial.print("CO2: ");
+    Serial.print(CO2_data);
+    Serial.print("ppm, TVOC: ");
+    Serial.println(TVOC_data);
+    
+    message_string_CC811 = String(CO2_data);
+    message_string_CC811.toCharArray(g_mqtt_message_buffer, message_string_CC811.length()+1);
+    client.publish(g_CO2_mqtt_topic, g_mqtt_message_buffer);
+    
+    message_string_CC811 = String(TVOC_data);
+    message_string_CC811.toCharArray(g_mqtt_message_buffer, message_string_CC811.length()+1);
+    client.publish(g_TVOC_mqtt_topic, g_mqtt_message_buffer);
+  }
+}
 
 
 /* Report the latest values to MQTT */
@@ -209,6 +238,7 @@ void reportToMqtt(){
     client.publish(g_mqtt_json_topic,g_mqtt_message_buffer);
   }
   #endif
+
 }
 
 /* Report the latest values to serial */
