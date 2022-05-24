@@ -12,11 +12,14 @@ const char* mqtt_subscribe = "command/door1";
 const char* mqtt_subscribe_sound = "UI/notifications";
 const char* mqtt_subscribe_volume = "UI/volume";
 const char* mqtt_topic = "tele/%x/DOOR1";
+const char* mqtt_topic_points = "points/%x/DOOR1";
 
 const char* ssid = "AREC_WL";
 const char* password = "AREC_WL_PASSWD";
 const char* mqtt_server = "192.168.2.101";
-char g_window1_mqtt_topic[50];        // MQTT topic for reporting window1          
+char g_window1_mqtt_topic[50];        // MQTT topic for reporting window1 
+char g_points_mqtt_topic[50];         // MQTT topic for reporting points 
+char g_mqtt_message_buffer[150];    // General purpose buffer for MQTT messages        
 const char* mqtt_user = "eric";
 const char* mqtt_password = "eric";
 const char* mqtt_device_id = "Window_Sensor1";
@@ -41,6 +44,9 @@ const int nextRedBlink_slow_on = 2000;        // red LED slow blink on time
 const int nextRedBlink_slow_off = 3000;       // red LED slow blink off time
 char* color = "off";
 int ledState=0;
+
+unsigned long tpointcountstart;
+const int nextPointLevelTime = 10000;     // time interval of point level change
 
 
 // SPEAKER SETUP
@@ -69,7 +75,8 @@ PubSubClient client(espClient);
 
 void setup() {   
   // Set up topic for publishing sensor readings
-  sprintf(g_window1_mqtt_topic, mqtt_topic,  ESP.getChipId());                                  
+  sprintf(g_window1_mqtt_topic, mqtt_topic,  ESP.getChipId());
+  sprintf(g_points_mqtt_topic, mqtt_topic_points,  ESP.getChipId());                                  
   
   pinMode(ledBluePin, OUTPUT);
   pinMode(ledRedPin, OUTPUT);
@@ -139,6 +146,7 @@ void callback(char* topic, byte* payload, unsigned int length) {\
     if (rx != rx_previous) {
       playedsound = false;
       newmessage = true;
+      tpointcountstart = millis();
     }
     rx_previous = rx;
   }
@@ -157,8 +165,8 @@ void callback(char* topic, byte* payload, unsigned int length) {\
     soundonoff_good = "off";
   }
 
-  if (rx.toInt() >= 10){
-    volume = map(rx.toInt(),0,100,0,25);
+  if (rx.toInt() >= 100){
+    volume = map(rx.toInt(),100,200,0,25);
     myDFPlayer.volume(volume);
   }
   
@@ -228,9 +236,7 @@ void doorRead(void)
       }
 
       if ((rx_previous == "2")) {
-        RGB_color(0,0,0);
-        color = "off";
-        ledState=0;             // LED is off
+        led_off();
       }
 
       newmessage = false;
@@ -253,17 +259,7 @@ void doorRead(void)
             
             if ((rx_previous == "0"))
             {
-              tnow = millis();
-              RGB_color(0,255,0);
-              if (soundonoff_good == "on") {
-                myDFPlayer.play(goodMusicIndex);
-                music = "on";
-                tmusicstop = tnow + nextMusicStop_good;
-              }
-          
-              tnextoff = tnow + nextTimeEvent;
-              color = "green";
-              ledState=1;             // LED is on
+              positiveFeedback();
             }
             
          }
@@ -279,17 +275,7 @@ void doorRead(void)
            
             if ((rx_previous == "1"))
             {
-              tnow = millis();
-              RGB_color(0,255,0);
-              if (soundonoff_good == "on") {
-                myDFPlayer.play(goodMusicIndex);
-                music = "on";
-                tmusicstop = tnow + nextMusicStop_good;
-              }
-              
-              tnextoff = tnow + nextTimeEvent;
-              color = "green";
-              ledState=1;             // LED is on
+              positiveFeedback();
             } 
         }
     }
@@ -301,8 +287,7 @@ void doorRead(void)
   if ((tnow >= tnextblink) && (color == "red")) {
       if (tnow <= tredchange) {
           if (ledState == 1) {
-              RGB_color(0,0,0);
-              ledState=0;             // LED is off
+              led_off();
           } else {
               RGB_color(255,0,0);
               ledState=1;             // LED is on
@@ -311,8 +296,7 @@ void doorRead(void)
       } 
       if ((tnow >= tredchange) && (tnow <= tredoff)) {
           if (ledState == 1) {
-              RGB_color(0,0,0);
-              ledState=0;             // LED is off
+              led_off();
               tnextblink = tnow + nextRedBlink_slow_off;
           } else {
               RGB_color(255,0,0);
@@ -321,16 +305,14 @@ void doorRead(void)
           }    
       } 
       if (tnow >= tredoff) {
-         RGB_color(0,0,0);
+         led_off();
          color = "off";
-         ledState=0;             // LED is off
       }
   }
 
   if ((tnow >= tnextoff) && (color == "green")) {
-    RGB_color(0,0,0);
+    led_off();
     color = "off";
-    ledState=0;             // LED is off
   }
 
   if ((tnow >= tmusicstop) && (music=="on")) {
@@ -348,6 +330,46 @@ void RGB_color(int red_light_value, int green_light_value, int blue_light_value)
   analogWrite(ledGreenPin, green_light_value);
   analogWrite(ledBluePin, blue_light_value);
 }
+
+
+void positiveFeedback(){
+  tnow = millis();
+  RGB_color(0,255,0);
+  if (soundonoff_good == "on") {
+    myDFPlayer.play(goodMusicIndex);
+    music = "on";
+    tmusicstop = tnow + nextMusicStop_good;
+  }
+
+  tnextoff = tnow + nextTimeEvent;
+  color = "green";
+  ledState=1;             // LED is on
+  
+  if ((tnow - tpointcountstart >= 0)&&(tnow - tpointcountstart <= nextPointLevelTime)) {
+     client.publish(g_points_mqtt_topic,"100");
+  }
+  if ((tnow - tpointcountstart >= nextPointLevelTime)&&(tnow - tpointcountstart <= 2*nextPointLevelTime)) {
+     client.publish(g_points_mqtt_topic,"80");
+  }
+  if ((tnow - tpointcountstart >= 2*nextPointLevelTime)&&(tnow - tpointcountstart <= 3*nextPointLevelTime)) {
+     client.publish(g_points_mqtt_topic,"60");
+  }
+  if ((tnow - tpointcountstart >= 3*nextPointLevelTime)&&(tnow - tpointcountstart <= 4*nextPointLevelTime)) {
+     client.publish(g_points_mqtt_topic,"40");
+  }
+  if ((tnow - tpointcountstart >= 4*nextPointLevelTime)&&(tnow - tpointcountstart <= 5*nextPointLevelTime)) {
+     client.publish(g_points_mqtt_topic,"20");
+  }
+  
+}
+
+
+void led_off(){
+  RGB_color(0,0,0);
+  ledState=0;             // LED is off
+}
+
+
 
 
 
