@@ -68,6 +68,7 @@ int ledState=0;
 
 unsigned long tpointcountstart;
 const int nextPointLevelTime = 10000;     // time interval of point level change
+char* points = "on";
 
 
 // SPEAKER SETUP
@@ -85,7 +86,7 @@ char* soundonoff_bad = "on";              // change this parameter to mute or un
 char* soundonoff_good = "on";              // change this parameter to mute or unmute the speaker
 boolean playedsound = false;
 char* music = "off";
-int volume = 20;                          // value from 0 to 30  
+int volume = 10;                          // value from 0 to 30  
  
 
 /****************************************************************************/
@@ -233,6 +234,7 @@ void callback(char* topic, byte* payload, unsigned int length) {\
       playedsound = false;
       newmessage = true;
       tpointcountstart = millis();
+      points = "on";
     }
     rx_previous = rx;
   }
@@ -502,20 +504,25 @@ void positiveFeedback(){
   color = "green";
   ledState=1;             // LED is on
   
-  if ((tnow - tpointcountstart >= 0)&&(tnow - tpointcountstart <= nextPointLevelTime)) {
+  if ((tnow - tpointcountstart >= 0)&&(tnow - tpointcountstart <= nextPointLevelTime)&&(points=="on")) {
      client.publish(g_points_mqtt_topic,"100");
+     points = "off";
   }
-  if ((tnow - tpointcountstart >= nextPointLevelTime)&&(tnow - tpointcountstart <= 2*nextPointLevelTime)) {
+  if ((tnow - tpointcountstart >= nextPointLevelTime)&&(tnow - tpointcountstart <= 2*nextPointLevelTime)&&(points=="on")) {
      client.publish(g_points_mqtt_topic,"80");
+     points = "off";
   }
-  if ((tnow - tpointcountstart >= 2*nextPointLevelTime)&&(tnow - tpointcountstart <= 3*nextPointLevelTime)) {
+  if ((tnow - tpointcountstart >= 2*nextPointLevelTime)&&(tnow - tpointcountstart <= 3*nextPointLevelTime)&&(points=="on")) {
      client.publish(g_points_mqtt_topic,"60");
+     points = "off";
   }
-  if ((tnow - tpointcountstart >= 3*nextPointLevelTime)&&(tnow - tpointcountstart <= 4*nextPointLevelTime)) {
+  if ((tnow - tpointcountstart >= 3*nextPointLevelTime)&&(tnow - tpointcountstart <= 4*nextPointLevelTime)&&(points=="on")) {
      client.publish(g_points_mqtt_topic,"40");
+     points = "off";
   }
-  if ((tnow - tpointcountstart >= 4*nextPointLevelTime)&&(tnow - tpointcountstart <= 5*nextPointLevelTime)) {
+  if ((tnow - tpointcountstart >= 4*nextPointLevelTime)&&(tnow - tpointcountstart <= 5*nextPointLevelTime)&&(points=="on")) {
      client.publish(g_points_mqtt_topic,"20");
+     points = "off";
   } 
 }
 
