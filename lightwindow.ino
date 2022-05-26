@@ -15,12 +15,14 @@ char g_mqtt_message_buffer[150];    // General purpose buffer for MQTT messages
 char g_command_topic[50];           // MQTT topic for receiving commands
 
 char g_light1_mqtt_topic[50];        // MQTT topic for reporting temp1
-char g_window1_mqtt_topic[50];        // MQTT topic for reporting window1
+char g_window1_mqtt_topic[50];       // MQTT topic for reporting window1
 char g_points_mqtt_topic[50];        // MQTT topic for reporting points
 
 const char* mqtt_subscribe = "command/window1";
 const char* mqtt_subscribe_sound = "UI/notifications";
 const char* mqtt_subscribe_volume = "UI/volume";
+// const char* mqtt_subscribe_goodsound = "UI/goodsound";
+// const char* mqtt_subscribe_goodsound = "UI/badsound";
 const char* mqtt_topic_window = "tele/%x/WINDOW1";
 const char* mqtt_topic_points = "points/%x/WINDOW1";
 const char* mqtt_topic_light = "tele/%x/LIGHT1";
@@ -78,10 +80,10 @@ DFPlayerMini_Fast myDFPlayer;
 int songFlip = -1;
 int lastSwitch = HIGH;
 unsigned long tmusicstop;
-const int goodMusicIndex = 3;
-const int badMusicIndex = 2;
-const int nextMusicStop_good = 5000;       
-const int nextMusicStop_bad = 3000;       
+int goodMusicIndex = 3;
+int badMusicIndex = 2;
+int nextMusicStop_good = 5000;       
+int nextMusicStop_bad = 3000;       
 char* soundonoff_bad = "on";              // change this parameter to mute or unmute the speaker
 char* soundonoff_good = "on";              // change this parameter to mute or unmute the speaker
 boolean playedsound = false;
@@ -229,6 +231,7 @@ void callback(char* topic, byte* payload, unsigned int length) {\
   Serial.print(rx);                                //Print the recieved message to serial
   Serial.println();
 
+  // Open/Close Door Notification
   if ((rx == "0") || (rx == "1") || (rx == "2")) {
     if (rx != rx_previous) {
       playedsound = false;
@@ -239,25 +242,38 @@ void callback(char* topic, byte* payload, unsigned int length) {\
     rx_previous = rx;
   }
 
-  
+  // Amount of Sound Notification
   if (rx == "Full") {
-    soundonoff_bad = "on";              // change this parameter to mute or unmute the speaker
+    soundonoff_bad = "on";              
     soundonoff_good = "on";
   }
   
   if (rx == "Success") {
-    soundonoff_bad = "off";              // change this parameter to mute or unmute the speaker
+    soundonoff_bad = "off";              
     soundonoff_good = "on";
   }
   if (rx == "Off") {
-    soundonoff_bad = "off";              // change this parameter to mute or unmute the speaker
+    soundonoff_bad = "off";              
     soundonoff_good = "off";
   }
 
+  // Volume Notification
   if (rx.toInt() >= 100){
     volume = map(rx.toInt(),100,200,0,25);
     myDFPlayer.volume(volume);
   }
+
+  /*
+  // Good / Bad Song Index Notification
+  if (rx == "0") {
+    goodMusicIndex = 1;
+    nextMusicStop_good = 5000;
+  }
+  if (rx == "1") {
+    badMusicIndex = 2;
+    nextMusicStop_bad = 5000;
+  }
+  */
   
 }
 
@@ -276,6 +292,8 @@ void reconnect() {
       client.subscribe(mqtt_subscribe);
       client.subscribe(mqtt_subscribe_sound);
       client.subscribe(mqtt_subscribe_volume);
+      //client.subscribe(mqtt_subscribe_goodsound);
+      //client.subscribe(mqtt_subscribe_badsound);
     } else {
       Serial.print("failed, rc=");
       Serial.print(client.state());
