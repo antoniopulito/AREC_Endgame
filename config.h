@@ -3,7 +3,7 @@ const char* ssid      = "AREC_WL";          // WiFi SSID
 const char* password  = "AREC_WL_PASSWD";   // WiFi Password
 
 /* MQTT */
-const char* mqtt_broker       = "192.168.2.110";    // IP address of your MQTT broker
+const char* mqtt_broker       = "192.168.2.101";    // IP address of your MQTT broker
 #define REPORT_MQTT_SEPERATE  true              // Report each value to its own topic
 #define REPORT_MQTT_JSON      false              // Report all value in a JSON message
 const char* status_topic      = "events";       // MQTT topic to report startup
