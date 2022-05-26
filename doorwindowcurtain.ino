@@ -11,8 +11,8 @@
 const char* mqtt_subscribe = "command/door1";
 const char* mqtt_subscribe_sound = "UI/notifications";
 const char* mqtt_subscribe_volume = "UI/volume";
-// const char* mqtt_subscribe_goodsound = "UI/goodsound";
-// const char* mqtt_subscribe_goodsound = "UI/badsound";
+const char* mqtt_subscribe_goodsound = "UI/goodsound";
+const char* mqtt_subscribe_badsound = "UI/badsound";
 const char* mqtt_topic = "tele/%x/DOOR1";
 const char* mqtt_topic_points = "points/%x/DOOR1";
 
@@ -60,10 +60,10 @@ DFRobotDFPlayerMini myDFPlayer;
 int songFlip = -1;
 int lastSwitch = HIGH;
 unsigned long tmusicstop;
-const int goodMusicIndex = 8;
-const int badMusicIndex = 9;
-const int nextMusicStop_good = 2000;       
-const int nextMusicStop_bad = 1000;       
+int goodMusicIndex = 1;
+int badMusicIndex = 2;
+int nextMusicStop_good = 2000;       
+int nextMusicStop_bad = 1000;       
 char* soundonoff_bad = "on";              // change this parameter to mute or unmute the speaker
 char* soundonoff_good = "on";              // change this parameter to mute or unmute the speaker
 boolean playedsound = false;
@@ -177,57 +177,106 @@ void callback(char* topic, byte* payload, unsigned int length) {\
     myDFPlayer.volume(volume);
   }
 
-  /*
+
   // Good / Bad Song Index Notification
-  if (rx == "Pop") {
+  if (rx == "Classic_good") {
     goodMusicIndex = 1;
     nextMusicStop_good = 2000;
   }
-  if (rx == "Bonk") {
+  if (rx == "Spin_good") {
     goodMusicIndex = 2;
-    nextMusicStop_good = 2000;
+    nextMusicStop_good = 1000;
   }
-  if (rx == "Robot") {
+  if (rx == "Robot_good") {
     goodMusicIndex = 3;
     nextMusicStop_good = 2000;
   }
-  if (rx == "Vibrant") {
+  if (rx == "Vibrant_good") {
     goodMusicIndex = 4;
     nextMusicStop_good = 2500;
   }
-  if (rx == "Double") {
+  if (rx == "Double_good") {
     goodMusicIndex = 5;
     nextMusicStop_good = 2000;
   }
-  if (rx == "Splash") {
+  if (rx == "Splash_good") {
     goodMusicIndex = 6;
     nextMusicStop_good = 3000;
   }
-  if (rx == "SciFi") {
+  if (rx == "SciFi_good") {
     goodMusicIndex = 7;
     nextMusicStop_good = 2000;
   }
-  if (rx == "Classic") {
+  if (rx == "Twinkle_good") {
     goodMusicIndex = 8;
+    nextMusicStop_good = 3000;
+  }
+  if (rx == "Bonk_good") {
+    goodMusicIndex = 9;
     nextMusicStop_good = 2000;
   }
-  if (rx == "Spin") {
-    goodMusicIndex = 9;
-    nextMusicStop_good = 1000;
-  }
-  if (rx == "Thud") {
+  if (rx == "Beep_good") {
     goodMusicIndex = 10;
-    nextMusicStop_good = 1000;
+    nextMusicStop_good = 2000;
   }
-  if (rx == "Chimes") {
+  if (rx == "Trumpet_good") {
     goodMusicIndex = 11;
-    nextMusicStop_good = 1000;
+    nextMusicStop_good = 3000;
   }
-  if (rx == "Ta-Da") {
+  if (rx == "Ta-Da_good") {
     goodMusicIndex = 12;
     nextMusicStop_good = 3000;
   }
-  */
+
+
+  if (rx == "Classic_bad") {
+    badMusicIndex = 1;
+    nextMusicStop_bad = 2000;
+  }
+  if (rx == "Spin_bad") {
+    badMusicIndex = 2;
+    nextMusicStop_bad = 1000;
+  }
+  if (rx == "Robot_bad") {
+    badMusicIndex = 3;
+    nextMusicStop_bad = 2000;
+  }
+  if (rx == "Vibrant_bad") {
+    badMusicIndex = 4;
+    nextMusicStop_bad = 2500;
+  }
+  if (rx == "Double_bad") {
+    badMusicIndex = 5;
+    nextMusicStop_bad = 2000;
+  }
+  if (rx == "Splash_bad") {
+    badMusicIndex = 6;
+    nextMusicStop_bad = 3000;
+  }
+  if (rx == "SciFi_bad") {
+    badMusicIndex = 7;
+    nextMusicStop_bad = 2000;
+  }
+  if (rx == "Twinkle_bad") {
+    badMusicIndex = 8;
+    nextMusicStop_bad = 3000;
+  }
+  if (rx == "Bonk_bad") {
+    badMusicIndex = 9;
+    nextMusicStop_bad = 2000;
+  }
+  if (rx == "Beep_bad") {
+    badMusicIndex = 10;
+    nextMusicStop_bad = 2000;
+  }
+  if (rx == "Trumpet_bad") {
+    badMusicIndex = 11;
+    nextMusicStop_bad = 3000;
+  }
+  if (rx == "Ta-Da_bad") {
+    badMusicIndex = 12;
+    nextMusicStop_bad = 3000;
+  }
   
 }
 
@@ -247,8 +296,8 @@ void reconnect() {
       client.subscribe(mqtt_subscribe); 
       client.subscribe(mqtt_subscribe_sound); 
       client.subscribe(mqtt_subscribe_volume);
-      //client.subscribe(mqtt_subscribe_goodsound);
-      //client.subscribe(mqtt_subscribe_badsound);                                                          
+      client.subscribe(mqtt_subscribe_goodsound);
+      client.subscribe(mqtt_subscribe_badsound);                                                          
     } else {
       Serial.print("failed, rc=");
       Serial.print(client.state());
