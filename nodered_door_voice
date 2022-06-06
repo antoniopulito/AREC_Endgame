@@ -1,0 +1,70 @@
+// 0 is cold outside close
+// 1 is hot outside close
+// 2 is cold outside open
+// 3 is hot outside open
+// 4 is off
+
+context.changed = context.changed
+context.last = context.last
+context.door1 = context.door1
+
+
+if (msg.payload || msg.payload == 0){
+    if (msg.payload != context.last){
+        context.changed = true;
+        context.last = msg.payload;
+    } else {
+        context.changed = false;
+    }
+}
+
+if (msg.door1 == 0 || msg.door1 == 1){
+    context.door1 = msg.door1;
+}
+
+if (context.changed){
+    
+    if (msg.payload == 0 && context.door1 == 1){
+        msg.playMessage = "It's cold in the other room, and your room is warm. You may want to close the door";
+        msg.playVolumeLevel = 30;
+        
+        return msg;
+    }
+    
+    if (msg.payload == 1 && context.door1 == 1){
+        msg.playMessage = "It's hot in the other room, and your room is cool. You may want to close the door";
+        msg.playVolumeLevel = 30;
+        
+        return msg;
+    }
+    
+    if (msg.payload == 2 && context.door1 == 0){
+        msg.playMessage = "It's cold in the other room, and your room is warm. You may want to open the door";
+        msg.playVolumeLevel = 30;
+        
+        return msg;
+    }
+    
+    if (msg.payload == 3 && context.door1 == 0){
+        msg.playMessage = "It's hot in the other room, and your room is cold. You may want to open the door";
+        msg.playVolumeLevel = 30;
+        
+        return msg;
+    }
+    
+    if (msg.payload == 4){
+        msg.playMessage = "None";
+        msg.playVolumeLevel = 0;
+        
+        return msg;
+    }
+    
+}
+
+context.changed = context.changed
+context.last = context.last
+context.door1 = context.door1
+
+
+
+
