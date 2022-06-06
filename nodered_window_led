@@ -1,0 +1,283 @@
+// 0 is cold outside close
+// 1 is hot outside close
+// 2 is cold outside open
+// 3 is hot outside open
+// 4 is off
+// 5 is high humidity and bad air quality
+// 6 is high humidity
+// 7 is bad air quality
+
+context.temp1_bool = context.temp1_bool || false;
+context.temp1 = context.temp1 || 0;
+context.hum1_bool = context.hum1_bool || false;
+context.hum1 = context.hum1 || 0;
+context.co2_1_bool = context.co2_1_bool || false;
+context.co2_1 = context.co2_1 || 0;
+context.tvoc1_bool = context.tvoc1_bool || false;
+context.tvoc1 = context.tvoc1 || 0;
+context.weath_bool = context.weath_bool || false;
+context.weath = context.weath || 0;
+context.fore_bool = context.fore_bool || false;
+context.fore = context.fore || 0;
+context.ToD_today_bool = context.ToD_today_bool || false;
+context.ToD_today = context.ToD_today;
+context.ToD_tomorrow_bool = context.ToD_tomorrow_bool || false;
+context.ToD_tomorrow = context.ToD_tomorrow;
+context.motion_bool = context.motion_bool || false;
+context.motion = context.motion || 0;
+context.sunrise_bool = context.sunrise_bool || false;
+context.sunrise = context.sunrise || 0;
+context.sunset_bool = context.sunset_bool || false;
+context.sunset = context.sunset || 0;
+context.timenow_bool = context.timenow_bool || false;
+context.timenow = context.timenow || 0;
+context.tmin_tonight_bool = context.tmin_tonight_bool || false;
+context.tmin_tonight = context.tmin_tonight || 0;
+context.is21_bool = context.is21_bool || false;
+
+// WAIT FOR ALL SIGNALS TO BE RECEIVED
+if (msg.temp1){
+    context.temp1 = msg.temp1;
+    context.temp1_bool = true;
+}
+
+if (msg.hum1){
+    context.hum1 = msg.hum1;
+    context.hum1_bool = true;
+}
+
+if (msg.co2){
+    context.co2_1 = msg.co2;
+    context.co2_1_bool = true;
+}
+
+if (msg.tvoc){
+    context.tvoc1 = msg.tvoc;
+    context.tvoc1_bool = true;
+}
+
+if (msg.weath){
+    context.weath = msg.weath;
+    context.weath_bool = true;
+}
+
+if (msg.fore){
+    context.fore = msg.fore;
+    context.fore_bool = true;
+}
+
+if (msg.ToD_today){
+    context.ToD_today = msg.ToD_today;
+    context.ToD_today_bool = true;
+}
+
+if (msg.ToD_tomorrow){
+    context.ToD_tomorrow = msg.ToD_tomorrow;
+    context.ToD_tomorrow_bool = true;
+}
+
+if (msg.tmin_tonight){
+    context.tmin_tonight = msg.tmin_tonight;
+    context.tmin_tonight_bool = true;
+}
+
+if (msg.sunrise){
+    context.sunrise = msg.sunrise * 1000;
+    context.sunrise_bool = true;
+}
+
+if (msg.sunset){
+    context.sunset = msg.sunset * 1000;
+    context.sunset_bool = true;
+}
+
+if (msg.timenow){
+    context.timenow = msg.timenow;
+    context.timenow_bool = true;
+}
+
+if (msg.motion == 0 || msg.motion == 1){
+    if (msg.motion == 1){ //if motion detected, save time
+        context.lastmotion = context.timenow;
+        context.motion = msg.motion;
+        context.motion_bool = true;
+    }
+    
+    if(context.timenow > context.lastmotion + 1.2e+6){ //if more than 20 minutes with no motion
+        context.motion = msg.motion;
+        context.motion_bool = true;
+    } else{
+        context.motion = 1;
+        context.motion_bool = true;
+    }
+}
+
+//CONSTANTS
+
+//AIR QUALITY
+var hum_in_max = 60; // max indoor humidity is 60%
+var co2_in_max = 1000; // max indoor CO2 level is 1000ppm
+var tvoc_in_max = 220; // max indoor TVOC level is 220ppb
+
+//WINTER--1
+var tmax_out_ToD1 = 20.5; //max temp for a winter day       
+//SUMMER--2
+var tmin_in_ToD2 = 20; // minimum inside temp on a summer day
+var tmin_cool_ToD2 = 16.7; // minimum outside on a cool summer night 
+var tmin_cold_ToD2 = tmin_cold_ToD2; // minimum outside on a cold cummer night
+//FALL/SPRING--3
+var tmin_warm_ToD3 = 25; // minimum max temp on warm day where you should open your windows in the morning
+var tmax_in_ToD3 = 22.8; // max inside temp when it's too warm
+var tmin_out_ToD3 = 18.3; // minimum outdoor temp when you can open your windows when it's colder outside (and it will be warmer than tmin_warm_ToD3)
+var hour = new Date(context.timenow);
+
+
+//RUN ALGORITHM AFTER ALL SIGNALS RECEIVED
+if (context.temp1_bool && context.hum1_bool && context.co2_1_bool && context.tvoc1_bool && context.weath_bool && context.fore_bool && context.motion_bool && 
+    context.sunrise_bool && context.sunset_bool && context.timenow_bool && context.ToD_today_bool && 
+    context.ToD_tomorrow_bool && context.tmin_tonight_bool){
+    
+    if (context.motion == 0 || context.timenow < context.sunrise || hour.getHours() > 22){           //if no one is around or night
+        msg.payload = 2;        //option
+    } 
+    //...if motion is detected...
+    
+    else {
+        
+        // check type of day tomorrow after 9pm
+        if (hour.getHours() >= 21 && !context.is21_bool) { // if after 9pm (ideally only execute once)
+            if (context.ToD_tomorrow == 1) { // if tomorrow’s warmer than 80F
+                context.ToD_today = 1; // send day state to summer
+            } else if (context.ToD_tomorrow == 2) {
+                context.ToD_today = 2; // send to winter day type
+            } else if (context.ToD_tomorrow == 3) {
+                context.ToD_today = 3; // send to winter day type
+            }
+            context.is21_bool = true;
+        }    
+        
+        // check indoor humidity and air quality levels
+        if (context.hum1 >= hum_in_max || context.co2_1 >= co2_in_max || context.tvoc1 >= tvoc_in_max) { // if any air quality sensor thresholds are violated
+            if (context.hum1 >= hum_in_max && (context.co2_1 >= co2_in_max || context.tvoc1 >= tvoc_in_max)) { // humidity and air quality are high
+                msg.payload = 5; // send message of "High Humidity & Bad Air Quality"
+            } else if (context.hum1 >= hum_in_max && context.co2_1 < co2_in_max && context.tvoc1 < tvoc_in_max) { // humidity is high, AQ is fine
+                msg.payload = 6; // send message of "High Humidity"
+            } else if (context.hum1 < hum_in_max && (context.co2_1 >= co2_in_max || context.tvoc1 >= tvoc_in_max)) { // AQ is bad, humidit is fine
+                msg.payload = 7; // send message of "Bad Air Quality"
+            }
+            
+        } else { // indoor air is healthy... check optimal energy state
+            //msg.payload = context.ToD_today;
+            msg.payload = 10+context.ToD_today;
+            //////////WINTER DAY///////////////
+            if (context.ToD_today == 1){
+            
+                if (context.weath <= context.temp1) { // if it’s colder outside than inside
+        		    msg.payload = 0; // close window
+        	    } else if (context.weath > context.temp1) { // if it’s warmer outside than inside (rare/unlikely in winter)
+        		    msg.payload = 3; // open window
+        	    } else {
+        	        msg.payload = 4;
+        	    }
+                
+                if (context.weath > tmax_out_ToD1) { // if it’s warmer than 69F outside, switch to fall/spring day type
+        		    context.ToD_today = 3; // fall/spring day
+                } 
+            }
+            
+            //////////SUMMER DAY///////////////    
+            if (context.ToD_today == 2){ // if summer day…
+                // temperature condition
+                if (hour.getHours() < 21) { // if it’s before bed time ~9pm
+        	        if (context.weath >= context.temp1) { // if it’s warmer outside than inside
+        	            msg.payload = 1; // close window
+                    } else if (context.weath < context.temp1) { // if it’s colder outside than inside, likely in the morning or early evening 
+            	        if (context.temp1 >= tmin_in_ToD2) { // if inside temp is greater than 68F
+                            msg.payload = 2; // open window
+            	        } else if (context.temp1 < tmin_in_ToD2) { // if inside temp is less than 68F
+            		        msg.payload = 0; // close window if it’s too cold inside
+            	        }
+                    } else {
+        	            msg.payload = 4;
+        	        }
+                } else if (hour.getHours() >= 21) { // if it’s after 9pm
+                	if (context.tmin_tonight >= tmin_cool_ToD2 && context.ToD_tomorrow == 2) { // cool night => 62F and tomorrow will be at least 80F
+                	    msg.payload = 2; // open window
+                	} else if (context.tmin_tonight < tmin_cool_ToD2 && context.tmin_tonight >= tmin_cold_ToD2 && context.ToD_tomorrow == 2) { // cold night 55F-62F and tomorrow will be hot
+                	    msg.payload = 4; // optional
+                    } else if (context.tmin_tonight < tmin_cold_ToD2 && context.ToD_tomorrow == 2) { // cold night < 55F and tomorrow will be hot
+                	    msg.payload = 0; // close window
+                    } else if (context.ToD_tomorrow == 3) {
+                	    context.ToD_today = 3; // fall/spring day type
+                    } else if (context.ToD_tomorrow == 1) { // if tomorrow will be cold
+                	    context.ToD_today = 1; // winter day type
+                    } else {
+            	        msg.payload = 4;
+            	    }
+                } else {
+                    msg.payload = 4; // optional
+                }
+            }
+        
+            
+            //////////FALL/SPRING DAY///////////////    
+            if (context.ToD_today == 3){ // if fall/spring day…
+                // temperature condition
+                if (context.weath <= context.temp1) { // if it’s colder outside
+            		if ((7 < hour.getHours() && hour.getHours() < 10) && T_max_forecast >= tmin_warm_ToD3) { // if morning and it’ll be hotter than 77F today
+                        if (context.weath >= tmin_out_ToD3) { // if outdoor temp greater than 65F
+                            msg.payload = 2; // open
+                        } else if (context.weath < tmin_out_ToD3) { // if outdoor temp less than 65F
+                            msg.payload = 4; // optional
+                        }
+                    } else { 
+                        // if it’s too warm inside
+                        if (context.temp1 > tmax_in_ToD3) { // warmer than 73F inside
+                            msg.payload = 4; // optional (okay to close if it's too warm)
+                        // it’s not too warm inside
+                        } else if (context.temp1 <= tmax_in_ToD3) { // cooler than 73F inside
+                            msg.payload = 0; // close (retain the inside heat)
+                        }
+                	}
+                } else if (context.weath > context.temp1) { // if it’s warmer outside
+                    // if it’s too warm inside
+                    if (context.temp1 > tmax_in_ToD3) { // warmer than 73F inside
+                        msg.payload = 4; // optional
+                    }
+                    // if it’s not too warm inside
+                    else if (context.temp1 <= tmax_in_ToD3) { // not too warm inside < 73F inside
+                        msg.payload = 3; // open (heat the house for the cold night)
+                    } else {
+            	        msg.payload = 4;
+            	    }
+                } else {
+                    msg.payload = 4; // optional
+                }
+            }
+        }
+    }
+    
+    context.temp1_bool = false;
+    context.hum1_bool = false;
+    context.co2_1_bool = false;
+    context.tvoc1_bool = false;
+    context.weath_bool = false;
+    context.fore_bool = false;
+    context.motion_bool = false;
+    context.sunrise_bool = false;
+    context.sunset_bool = false;
+    context.timenow_bool = false;
+    context.temp1 = 0;
+    context.hum1 = 0;
+    context.co2_1 = 0;
+    context.tvoc1 = 0;
+    context.weath = 0;
+    context.fore = 0;
+    //context.motion = 0;
+    context.sunrise = 0;
+    context.sunset = 0;
+    context.timenow = 0;
+    
+    return msg;
+    
+}
