@@ -1,0 +1,195 @@
+// 0 is closed
+// 1 is open
+// 2 is option
+// 3 open automatic
+// 4 close automatic
+
+context.automation_bool = context.automation_bool || false;
+context.automation = context.automation || false;
+context.temp1_bool = context.temp1_bool || false;
+context.temp1 = context.temp1 || 0;
+context.weath_bool = context.weath_bool || false;
+context.weath = context.weath || 0;
+context.occupancy_bool = context.occupancy_bool || false;
+context.occupancy = context.occupancy || 0;
+context.light_bool = context.light_bool || false;
+context.light = context.light || 0;
+context.sunrise_bool = context.sunrise_bool || false;
+context.sunrise = context.sunrise || 0;
+context.timenow_bool = context.timenow_bool || false;
+context.timenow = context.timenow || 0;
+context.ToD_today_bool = context.ToD_today_bool || false;
+context.ToD_today = context.ToD_today;
+context.ToD_tomorrow_bool = context.ToD_tomorrow_bool || false;
+context.ToD_tomorrow = context.ToD_tomorrow;
+context.is21_bool = context.is21_bool || false;
+
+// WAIT FOR ALL SIGNALS TO BE RECEIVED
+if (msg.automation == false || msg.automation == true){
+    context.automation = msg.automation;
+    context.automation_bool = true;
+}
+
+if (msg.temp1){
+    context.temp1 = msg.temp1;
+    context.temp1_bool = true;
+}
+
+if (msg.weath){
+    context.weath = msg.weath;
+    context.weath_bool = true;
+}
+
+if (msg.light){
+    context.light = msg.light;
+    context.light_bool = true;
+}
+
+if (msg.occupancy == 0 || msg.occupancy){
+    context.occupancy = msg.occupancy;
+    context.occupancy_bool = true;
+}
+
+if (msg.ToD_today){
+    context.ToD_today = msg.ToD_today;
+    context.ToD_today_bool = true;
+}
+
+if (msg.ToD_tomorrow){
+    context.ToD_tomorrow = msg.ToD_tomorrow;
+    context.ToD_tomorrow_bool = true;
+}
+
+if (msg.sunrise){
+    context.sunrise = msg.sunrise * 1000;
+    context.sunrise_bool = true;
+}
+
+if (msg.timenow){
+    context.timenow = msg.timenow;
+    context.timenow_bool = true;
+}
+
+var lux_light = 800; // minimum light threshold when you want your curtains open 
+var lux_night = 100; // light value when it’s after sunset / nighttime 
+var hour = new Date(context.timenow)
+
+//RUN ALGORITHM AFTER ALL SIGNALS RECEIVED
+if (context.automation_bool && context.light_bool && context.timenow_bool && 
+    context.temp1_bool && context.weath_bool && context.ToD_today_bool &&
+    context.ToD_tomorrow_bool && context.occupancy_bool && context.sunrise_bool){
+        
+        msg.payload = 1000;
+    
+    if (context.automation == true) {
+
+        if (hour.getHours() >= 21 && !context.is21_bool) { // if after 9pm (ideally only execute once)
+            if (context.ToD_tomorrow == 1) { // if tomorrow’s warmer than 80F
+                context.ToD_today = 1; // send day state to summer
+            } else if (context.ToD_tomorrow == 2) {
+                context.ToD_today = 2; // send to winter day type
+            } else if (context.ToD_tomorrow == 3) {
+                context.ToD_today = 3; // send to winter day type
+            }
+            context.is21_bool = true;
+        }    
+        
+        //////////WINTER DAY///////////////
+        if (context.ToD_today == 1) { // if winter day…
+        	// light condition
+            if (context.light < lux_night){ //dark
+            	msg.payload = 4; // insulate windows during cold night
+            } else if (context.light > lux_light){ //sunny
+                if (context.occupancy == 1 || context.occupancy == 3){//home for sure or sleeping/working
+                    msg.payload = 3; // let the sunlight in to heat home
+                } else { //people gone for sure or pet/intruder
+                    msg.payload = 3; //open curtains (AUTOMATICALLY)
+                }
+            } else if (context.light <= lux_light && context.light >= lux_night){ //cloudy
+                if (context.occupancy == 1 || context.occupancy == 3){//home for sure or sleeping/working
+                    msg.payload = 2; //optional
+                } else { //people gone for sure or pet/intruder
+                    msg.payload = 4; //Close curtains (AUTOMATICALLY)
+                }    
+            }
+        }
+        
+        //////////SUMMER DAY///////////////
+        if (context.ToD_today == 2) { // if summer day…
+            // light condition
+            if (context.light < lux_night){ //dark
+            	if (context.occupancy == 1){//home for sure
+                    msg.payload = 4; //Close curtains (AUTOMATICALLY)
+                } else { //people gone for sure, sleeping, or pet/intruder
+                    if (context.sunrise - context.time > 1.2e6) { // if sunrise is more than 20 minutes away
+                        msg.payload = 3; //Open curtains (AUTOMATICALLY)
+                    } else {
+                         msg.payload = 4; //close curtains (AUTOMATICALLY)
+                    }
+                }
+            } else if (context.light > lux_light){ //sunny
+                if (context.occupancy == 1 || context.occupancy == 3){//occupied
+                    msg.payload = 2; //optional
+                } else { //people gone for sure or pet/intruder
+                    msg.payload = 4; //Close curtains (AUTOMATICALLY)
+                }
+            } else if (context.light <= lux_light && context.light >= lux_night){ //cloudy
+                if (context.occupancy == 1 || context.occupancy == 3){//home for sure or sleeping/working
+                    msg.payload = 3; // Open Curtains (AUTOMATICALLY)
+                } else { //people gone for sure or pet/intruder
+                    msg.payload = 4; //Close curtains (AUTOMATICALLY)
+                }    
+            }
+        }
+        
+        //////////FALL/SPRING DAY///////////////
+        if (context.ToD_today == 3) { // if fall/summer day…
+            // light condition
+            if (context.light < lux_night){ //dark
+            	msg.payload = 4; //Close curtains (AUTOMATICALLY)
+            } else if (context.light > lux_light){ //sunny
+                if (context.occupancy == 1){//peole home for sure
+                    msg.payload = 3; //open (ideally don't open until after wake up time)
+                }  else if (context.occupancy == 3) {//sleeping
+                    msg.payload = 2; // optional if sleeping
+                } else { //gone for sure
+                    msg.payload = 3; //Open curtains (AUTOMATICALLY)
+                }
+            } else if (context.light <= lux_light && context.light >= lux_night){ //cloudy
+                if (context.weath < context.temp1){ // colder outside
+                    if (context.occupancy == 1 || context.occupancy == 3){//people home or sleeping
+                        msg.payload = 2; //optional
+                    } else { //gone for sure or pet/intruder
+                        msg.payload = 4; //Close curtains (AUTOMATICALLY)
+                    }
+                } else if (context.weath >= context.temp1){
+                    if (context.occupancy == 1 || context.occupancy == 3){//people home or sleeping
+                        msg.payload = 3; //open automatically
+                    } else { //unoccupied
+                        msg.payload = 3; //Open automatically
+                    }
+                }
+            }
+        }
+    } else if (context.automation == false) {
+        msg.payload = 2; //optional
+    }
+    
+    context.automation = false;
+    context.automation_bool = false;
+    context.temp1_bool = false;
+    context.weath_bool = false;
+    context.occupancy_bool = false;
+    context.light_bool = false;
+    context.sunrise_bool = false;
+    context.timenow_bool = false;
+    context.temp1 = 0;
+    context.weath = 0;
+    context.light = 0;
+    context.occupancy = 0;
+    context.sunrise = 0;
+    context.timenow = 0;
+    
+    return msg;
+    
+}
