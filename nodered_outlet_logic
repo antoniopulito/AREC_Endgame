@@ -1,0 +1,84 @@
+context.automation_bool = context.automation_bool || false;
+context.automation = context.automation || false;
+context.occupancy_bool = context.occupancy_bool || false;
+context.occupancy = context.occupancy || 0;
+context.power1_bool = context.power1_bool || false;
+context.power1 = context.power1 || 0;
+context.timenow_bool = context.timenow_bool || false;
+context.timenow = context.timenow || 0;
+
+if (msg.automation == false || msg.automation == true){
+    context.automation = msg.automation;
+    context.automation_bool = true;
+}
+
+if (msg.occupancy == 0 || msg.occupancy){
+    context.occupancy = msg.occupancy;
+    context.occupancy_bool = true;
+}
+
+if (msg.power1 == 0 || msg.power1){
+    context.power1 = msg.power1;
+    context.power1_bool = true;
+}
+
+if (msg.timenow){
+    context.timenow = msg.timenow;
+    context.timenow_bool = true;
+}
+
+// CONSTANTS
+
+//TV
+var tv_power_max = 45; // 45 Watts in standby for TV
+//Cable Box
+var cable_power_max = 20; // 20 Watts in standby for cable box
+//Game Console
+var game_power_max = 15; // 15 Watts in standby for Xbox
+
+
+//RUN ALGORITHM AFTER ALL SIGNALS RECEIVED
+if (context.automation_bool && context.occupancy_bool && context.power1_bool && context.timenow){
+    if (context.automation == true){
+        // evaluate current time in hours
+        var date = new Date(context.timenow);
+        var hours = date.getHours();
+        var minutes = date.getMinutes();
+        var time = hours + minutes/60; // time in hours
+        
+        if (context.occupancy == 0 || context.occupancy == 2){ // people gone for sure or intruder/pet
+            if (context.power1 <= tv_power_max) { // if power draw is less than standby threshold
+                msg.payload = 0; // turn off power if below standby threshold
+            } else {
+                msg.payload = 1; // turn on power if above standby threshold
+            }
+            
+        } else if (context.occupancy == 3) { // sleeping
+            if (time > 22 && time < 6) { //between 10pm and 6am
+                if (context.power1 <= tv_power_max) { // if power draw is less than standby threshold
+                    msg.payload = 0; // turn off power if below standby threshold
+                } else {
+                    msg.payload = 1; // turn on power if above standby threshold
+                }
+            } else {
+                msg.payload = 1; // turn on power
+            }
+            
+        } else { // home for sure or sleeping
+            msg.payload = 1; // turn on power if motion is detected
+            
+        }
+    } else {
+        msg.payload = 2;
+    }
+    
+    context.automation_bool = false;
+    context.automation = false;
+    context.occupancy_bool = false;
+    context.occupancy = 0;
+    context.power1_bool = false;
+    context.power1 = 0;
+    
+    return msg;    
+
+}
