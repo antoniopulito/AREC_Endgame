@@ -1,0 +1,75 @@
+// 0 = people gone for sure (no devices, no motion)
+// 1 = people home for sure (devices, motion)
+// 2 = intruder/pet (no devices, motion)
+// 3 = sleeping/chilling (devices, no motion)
+
+context.motion_bool = context.motion_bool || false;
+context.motion = context.motion || 0;
+context.deviceTotal_bool = context.deviceTotal_bool || false;
+context.deviceTotal = context.deviceTotal || 0;
+context.timenow_bool = context.timenow_bool || false;
+context.timenow = context.timenow || 0;
+
+if (msg.timenow){
+    context.timenow = msg.timenow;
+    context.timenow_bool = true;
+}
+
+if (msg.motion == 0 || msg.motion == 1){
+    if (msg.motion == 1){ //if motion detected, save time
+        context.lastmotion = context.timenow;
+        context.motion = msg.motion;
+        context.motion_bool = true;
+    }
+    
+    if(context.timenow > context.lastmotion + 1.2e6){ //if more than 20 minutes with no motion
+        context.motion = 0;
+        context.motion_bool = true;
+    } else{
+        context.motion = 1;
+        context.motion_bool = true;
+    }
+}
+
+if (msg.deviceTotal == 0 || msg.deviceTotal > 0){
+    if (msg.deviceTotal > 0){ //if motion detected, save time
+        context.lastdevice = context.timenow;
+        context.deviceTotal = msg.deviceTotal;
+        context.deviceTotal_bool = true;
+    }
+    
+    if(context.timenow > context.lastdevice + 1.2e6){ //if more than 20 minutes with no motion
+        context.deviceTotal = 0;
+        context.deviceTotal_bool = true;
+    } else {
+        context.deviceTotal = 1; // say it's 1 until no devices for 20 minutes
+        context.deviceTotal_bool = true;
+    }
+}
+
+//RUN ALGORITHM AFTER ALL SIGNALS RECEIVED
+if (context.motion_bool && context.deviceTotal_bool){
+    
+    if (context.deviceTotal == 0) { // if no devices detected for 20 minutes
+        if (context.motion == 0) { // if no motion detected for 20 miuntes
+            msg.payload = 0; // ***people gone for sure***
+        } else { // motion detected
+            msg.payload = 2; // intruder or pet
+        }
+    } else { // if devices detected
+        if (context.motion == 0) { // if no motion detected for 20 minutes
+            msg.payload = 3; // sleeping/chilling
+        } else { // motion detected
+            msg.payload = 1; // ***people home for sure***
+        }
+    }
+    
+    context.motion_bool = false;
+    context.motion = 0;
+    context.deviceTotal_bool = false;
+    context.deviceTotal = 0;
+    context.timenow_bool = false;
+    context.timenow = 0;
+    
+    return msg;
+}
