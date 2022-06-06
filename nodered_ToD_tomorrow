@@ -1,0 +1,53 @@
+// 1 winter
+// 2 summer
+// 3 fall/spring
+
+context.tmax_tomorrow_bool = context.tmax_tomorrow_bool || false;
+context.tmax_tomorrow = context.tmax_tomorrow || 0;
+
+
+
+// define temperature ranges for summer, winter and fall/spring days
+// SUMMER (GOAL: keep hot air out, keep cold air in)
+T_min_summer = 26.7; // lowest max day temperature for a summer day (C) (80F)
+
+// SUMMER (GOAL: keep hot air out, keep cold air in)
+T_min_summer = 26.7; // lowest max day temperature for a summer day (C) (80F)
+
+// WINTER (GOAL: keep cold air out, keep hot air in)
+T_max_winter = 20.5; // highest max day temperature for a winter day (C) (69F)
+
+// FALL/SPRING (GOAL: keep cold air out at night, let warm air circulate in during the day)
+//T_max_fall_spring = T_min_summer; // highest max day temperature for a fall/spring day (C)
+//T_min_fall_spring = T_max_winter; // lowest max day temperature for a fall/spring day (C)
+
+
+if (msg.tmax_tomorrow){
+    context.tmax_tomorrow = msg.tmax_tomorrow;
+    context.tmax_tomorrow_bool = true;
+}
+
+if (context.tmax_tomorrow_bool){
+    // determine whether today is summer, winter, or fall/spring day
+    // execute after midnight (maybe execute again after a few hours to update forecasted data)
+
+    if (context.tmax_tomorrow <= T_max_winter) { // if winter day…
+    	msg.payload = 1; // assign state = 1 (winter)
+    } else if (context.tmax_tomorrow >= T_min_summer) { // if summer day… 
+    	msg.payload = 2; // assign state = 2 (summer)
+    } else if (T_max_winter < context.tmax_tomorrow && context.tmax_tomorrow < T_min_summer ) { // if fall/spring day…
+    	msg.payload = 3; // assign state = 3 (fall/spring)
+    }
+
+    
+    return msg;
+    
+    
+}
+
+
+
+
+
+
+
