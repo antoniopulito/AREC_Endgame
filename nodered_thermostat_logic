@@ -1,0 +1,215 @@
+context.automation_bool = context.automation_bool || false;
+context.automation = context.automation || false;
+context.thermostat_bool = context.thermostat_bool || false;
+context.thermostat = context.thermostat || 0;
+context.occupancy_bool = context.occupancy_bool || false;
+context.occupancy = context.occupancy || 0;
+context.temp1_bool = context.temp1_bool || false;
+context.temp1 = context.temp1 || 0;
+context.ToD_today_bool = context.ToD_today_bool || false;
+context.ToD_today = context.ToD_today;
+context.ToD_tomorrow_bool = context.ToD_tomorrow_bool || false;
+context.ToD_tomorrow = context.ToD_tomorrow;
+context.leaveTime_bool = context.leaveTime_bool || false;
+context.leaveTime = context.leaveTime || 0;
+context.returnTime_bool = context.returnTime_bool || false;
+context.returnTime = context.returnTime || 0;
+context.HomeAllDay_bool = context.HomeAllDay_bool || false;
+context.HomeAllDay = context.HomeAllDay || false;
+context.timenow_bool = context.timenow_bool || false;
+context.timenow = context.timenow || 0;
+//context.weath_bool = context.weath_bool || false;
+//context.weath = context.weath || 0;
+context.fore_bool = context.fore_bool || false;
+context.fore = context.fore || 0;
+
+if (msg.automation == false || msg.automation == true){
+    context.automation = msg.automation;
+    context.automation_bool = true;
+}
+
+if (msg.thermostat){
+    context.thermostat = msg.thermostat;
+    context.thermostat_bool = true;
+}
+
+if (msg.occupancy == 0 || msg.occupancy){
+    context.occupancy = msg.occupancy;
+    context.occupancy_bool = true;
+}
+
+if (msg.temp1){
+    context.temp1 = msg.temp1;
+    context.temp1_bool = true;
+}
+
+if (msg.weath){
+    context.weath = msg.weath;
+    context.weath_bool = true;
+}
+
+if (msg.fore){
+    context.fore = msg.fore;
+    context.fore_bool = true;
+}
+
+if (msg.leaveTime){
+    context.leaveTime = msg.leaveTime;
+    context.leaveTime_bool = true;
+}
+
+if (msg.returnTime){
+    context.returnTime = msg.returnTime;
+    context.returnTime_bool = true;
+}
+
+if (msg.HomeAllDay == false || msg.HomeAllDay == true){
+    context.HomeAllDay = msg.HomeAllDay;
+    context.HomeAllDay_bool = true;
+}
+
+if (msg.timenow){
+    context.timenow = msg.timenow;
+    context.timenow_bool = true;
+}
+
+if (msg.ToD_today){
+    context.ToD_today = msg.ToD_today;
+    context.ToD_today_bool = true;
+}
+
+if (msg.ToD_tomorrow){
+    context.ToD_tomorrow = msg.ToD_tomorrow;
+    context.ToD_tomorrow_bool = true;
+}
+
+// constants
+var setTemp_night_ToD1 = 17; // 64F 18
+var setTemp_day_ToD1 = 21; // 69F
+var setTemp_away_ToD1 = 18; // 64F
+
+var setTemp_ToD2 = 16; // 62.5F 16
+
+var setTemp_night_ToD3 = 17; // 64F 18
+var setTemp_day_ToD3 = 21; // 69F
+var setTemp_away_ToD3 = 18; // 64F
+
+
+
+if (context.automation_bool && context.thermostat_bool && context.occupancy_bool && context.temp1_bool && context.fore_bool && context.leaveTime_bool && context.returnTime_bool && context.timenow_bool && context.ToD_today_bool && context.ToD_tomorrow_bool && context.HomeAllDay_bool) {
+    // evaluate current time in hours
+    var date = new Date(context.timenow);
+    var hours = date.getHours();
+    var minutes = date.getMinutes();
+    var time = hours + minutes/60; // time in hours
+    
+    if (context.automation == true){ // if automation on
+        
+        // check type of day tomorrow at 8pm
+        if (time >= 20 && time <= 21 ) { // check chekcing between 8pm and 9pm
+            if (context.ToD_tomorrow == 1) { // if tomorrow’s warmer than 80F
+                context.ToD_today = 1; // send day state to summer
+            } else if (context.ToD_tomorrow == 2) {
+                context.ToD_today = 2; // send to winter day type
+            } else if (context.ToD_tomorrow == 3) {
+                context.ToD_today = 3; // send to winter day type
+            }
+        }    
+
+        // WINTER DAY
+        if (context.ToD_today == 1) { // if winter day…
+            // if tenants are gone
+            if (context.occupancy == 0 || context.occupancy == 2){ // if people gone or intruder/pet... (no devices)
+                if (context.returnTime - time < 3) { // if return time less than 3 hours away
+                    msg.payload = setTemp_day_ToD1; // turn heat on
+                } else { // if return time is is more than 3 hours away 
+                    msg.payload = setTemp_away_ToD1; // turn heat down
+                }
+            } else if (context.occupancy == 3) {// if sleeping
+                if (time >= 20 || time < 3) { // if between 8pm and 3am
+                    msg.payload = setTemp_night_ToD1; // lower thermostat
+                } else {
+                    msg.payload = setTemp_day_ToD1; // increase thermostat to 69F
+                }
+            } else if (context.occupancy == 1) {// if people are home and moving
+                if (time >= 20 || time < 3) { // if between 8pm and 3am
+                    msg.payload = setTemp_night_ToD1; // lower thermostat
+                } else {
+                    if (context.leaveTime - time < 3 && context.leaveTime - time > 0 && context.HomeAllDay == false) { // if leave time is 3 hours away & user has not specified they're staying home
+                        msg.payload = setTemp_away_ToD1; // turn heat down
+                    } else { 
+                        msg.payload = setTemp_day_ToD1;
+                    }
+                }
+            }    
+        }
+        
+        // SUMMER DAY
+        if (context.ToD_today == 2) { // if summer day…
+            msg.payload = setTemp_ToD2; // lower thermostat
+        }
+        
+        // FALL/SPRING DAY
+        if (context.ToD_today == 3) { // if spring day…
+            if (context.fore >= setTemp_day_ToD3) { // if forecasted temperature is greater than inside temperature
+                if (context.temp1 > setTemp_day_ToD3-0.5) { // if it's not too cold... lower the thermostat
+                    msg.payload = setTemp_away_ToD3; // lower thermostat
+                } else {
+                    msg.payload = setTemp_day_ToD3;
+                }
+            
+            } else {
+
+                // if tenants are gone
+                if (context.occupancy == 0 || context.occupancy == 2){ // if people gone or intruder/pet... (no devices)
+                    if (context.returnTime-time < 3) { // if return time less than 3 hours away
+                        msg.payload = setTemp_day_ToD3;
+                    } else { // if return time is is more than 3 hours away 
+                        msg.payload = setTemp_away_ToD3; // turn heat down
+                    }
+                } else if (context.occupancy == 3) {// if sleeping
+                    if (time >= 20 || time < 3) { // if between 8pm and 3am
+                        msg.payload = setTemp_night_ToD3; // lower thermostat
+                    } else {
+                        msg.payload = setTemp_day_ToD3; // increase thermostat to 69F
+                    }
+                } else if (context.occupancy == 1) {// if people are home and moving
+                    if (time >= 20 || time < 3) { // if between 8pm and 3am
+                        msg.payload = setTemp_night_ToD3; // lower thermostat
+                    } else {
+                        if (context.leaveTime - time < 3 && context.leaveTime - time > 0 && context.HomeAllDay == false) { // if leave time is 3 hours away
+                            msg.payload = setTemp_away_ToD3; // turn heat down
+                        } else { 
+                            msg.payload = setTemp_day_ToD3;
+                        }
+                    }
+                }    
+            }
+        }
+    } else if (context.automation == false) {
+        msg.payload = context.thermostat;
+    } 
+
+    context.automation = false;
+    context.automation_bool = false;
+    context.thermostat_bool = false;
+    context.thermostat = 0;
+    context.occupancy_bool = false;
+    context.occupancy = 0;
+    context.temp1_bool = false;
+    context.temp1 = 0;
+//    context.weath1_bool = false;
+//    context.weath = 0;
+    context.fore1_bool = false;
+    context.fore = 0;
+    context.leaveTime_bool = false;
+    context.leaveTime = 0;
+    context.returnTime_bool = false;
+    context.returnTime = 0;
+    context.HomeAllDay = false;
+    context.HomeAllDay_bool = false;
+    context.timenow_bool = false;
+    context.timenow = 0;
+    
+    return msg;
+}
