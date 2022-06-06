@@ -1,0 +1,185 @@
+// 0 is cold outside close
+// 1 is hot outside close
+// 2 is cold outside open
+// 3 is hot outside open
+// 4 is off
+// 5 is high humidity and bad air quality
+// 6 is high humidity
+// 7 is bad air quality
+
+context.doorled = context.doorled;
+context.windowled = context.windowled;
+context.door1 = context.door1;
+context.window1 = context.window1;
+context.indicators = context.indicators;
+context.lights = context.lights;
+
+context.window_correct = context.window_correct;
+context.door_correct = context.door_correct;
+
+context.window_message = context.window_message;
+context.door_message = context.door_message;
+
+
+//context.message = context.message;
+
+// WAIT FOR ALL SIGNALS TO BE RECEIVED
+if (msg.doorled == 0 || msg.doorled){
+    context.doorled = msg.doorled;
+    context.door_correct = false;
+}
+
+if (msg.windowled == 0 || msg.windowled){
+    context.windowled = msg.windowled;
+    context.window_correct = false;
+}
+
+if (msg.door1 == 0 || msg.door1){
+    context.door1 = msg.door1;
+    context.door_toggled = false;
+    context.door_correct = false;
+}
+
+if (msg.window1 == 0 || msg.window1){
+    context.window1 = msg.window1;
+    context.window_correct = false;
+}
+
+if (msg.indicators == 0 || msg.indicators){
+    context.indicators = msg.indicators;
+    context.door_correct = false;
+    context.window_correct = false;
+}
+
+if (msg.lights == true || msg.lights == false){
+    context.lights = msg.lights;
+    context.door_correct = false;
+    context.window_correct = false;
+}
+
+
+//Window Check
+//Indication set to Off
+if (context.indicators == 0){
+    context.window_message = 999;
+}
+//Indication set to Minimal
+else if (context.indicators == 1){
+    //ADD HERE
+}
+//Indication set to Focused
+else if (context.indicators == 2){
+    //Close window
+    if (context.windowled == 0 || context.windowled == 1){
+        context.window_message = 14;
+    //Open door
+    } else if (context.windowled == 2 || context.windowled == 3){
+        context.window_message = 15;
+    } else if (context.windowled == 5 || context.windowled == 6 || context.windowled == 7){
+        context.window_message = 24;
+    }
+}
+//Indication set to Full
+else if (context.indicators == 3){
+    if (context.windowled == 0) {
+        context.window_message = 5;
+    } else if (context.windowled == 1) {
+        context.window_message = 6;
+    } else if (context.windowled == 2) {
+        context.window_message = 8;            
+    } else if (context.windowled == 3) {
+        context.window_message = 7;            
+    } else if (context.windowled == 5 || context.windowled == 6 || context.windowled == 7){
+        context.window_message = 24;
+    }
+}
+
+
+//Door check
+//Indication set to Off
+if (context.indicators == 0){
+    context.door_message = 999;
+}
+//Indication set to Minimal
+else if (context.indicators == 1){
+    //REMOVED FROM DASHBOARD FOR NOW
+}
+//Indication set to Focused
+else if (context.indicators == 2){
+    //Close door
+    if (context.doorled == 0 || context.doorled == 1){
+        context.door_message = 21;
+    //Open door
+    } else if (context.doorled == 2 || context.doorled == 3){
+        context.door_message = 20;
+    }
+}
+//Indication set to Full
+else if (context.indicators == 3){
+    if (context.doorled == 0) {
+        context.door_message = 1;
+    } else if (context.doorled == 1) {
+        context.door_message = 2;
+    } else if (context.doorled == 2) {
+        context.door_message = 4;            
+    } else if (context.doorled == 3) {
+        context.door_message = 3;            
+    }
+}
+
+
+   
+//Check for off cases
+if ((context.doorled == 4) && (context.windowled == 4)) {
+    context.door_correct = true;
+    context.window_correct = true;
+}
+
+    
+if (     (((context.doorled == 0) || (context.doorled == 1)) && context.door1 == 0 ) 
+                ||(((context.doorled == 2) || (context.doorled == 3)) && context.door1 == 1 ) 
+                || (context.doorled == 4) ){
+    context.door_correct = true;
+} else{
+    context.door_correct = false;; 
+}
+
+
+if (            (((context.windowled == 0) || (context.windowled == 1)) && context.window1 == 0 ) 
+                ||(((context.windowled == 2) || (context.windowled == 3)) && context.window1 == 1 )
+                || (context.windowled == 4) 
+                || (((context.windowled == 5) || (context.windowled == 6) || (context.windowled == 7)) && context.window1 == 1 )    ){
+    context.window_correct = true;
+} else{
+    context.window_correct = false;
+}
+
+
+if (context.door_correct && context.window_correct){
+    if (context.lights){
+        context.message = 23;
+    } else {
+        context.message = 999;
+    }
+} else if (!context.door_correct){
+    context.message = context.door_message;
+} else if (!context.window_correct){
+    context.message = context.window_message;
+}
+
+
+//context.doorled = context.doorled;
+//context.windowled = context.windowled;
+//context.door1 = context.door1;
+//context.window1 = context.window1;
+//context.indicators = context.indicators;
+//context.lights = context.lights;
+
+//context.window_correct = context.window_correct;
+//context.door_correct = context.door_correct;
+
+//context.window_message = context.window_message;
+//context.door_message = context.door_message;
+
+msg.payload = context.message;
+return msg;
