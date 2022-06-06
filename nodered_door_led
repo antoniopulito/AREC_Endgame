@@ -1,0 +1,157 @@
+// 0 is cold outside close
+// 1 is hot outside close
+// 2 is cold outside open
+// 3 is hot outside open
+// 4 is off
+
+context.temp1_bool = context.temp1_bool || false;
+context.temp1 = context.temp1 || 0;
+context.weath_bool = context.weath_bool || false;
+context.weath = context.weath || 0;
+context.motion_bool = context.motion_bool || false;
+context.motion = context.motion || 0;
+context.sunrise_bool = context.sunrise_bool || false;
+context.sunrise = context.sunrise || 0;
+context.sunset_bool = context.sunset_bool || false;
+context.sunset = context.sunset || 0;
+context.timenow_bool = context.timenow_bool || false;
+context.timenow = context.timenow || 0;
+context.ToD_today_bool = context.ToD_today_bool || false;
+context.ToD_today = context.ToD_today;
+context.thermostat_bool = context.thermostat_bool || false;
+context.thermostat = context.thermostat || 0;
+
+var hour = new Date(context.timenow)
+
+if (msg.temp1){
+    context.temp1 = msg.temp1;
+    context.temp1_bool = true;
+}
+
+if (msg.weath){
+    context.weath = msg.weath;
+    context.weath_bool = true;
+}
+
+
+if (msg.sunrise){
+    context.sunrise = msg.sunrise * 1000;
+    context.sunrise_bool = true;
+}
+
+if (msg.sunset){
+    context.sunset = msg.sunset * 1000;
+    context.sunset_bool = true;
+}
+
+if (msg.timenow){
+    context.timenow = msg.timenow;
+    context.timenow_bool = true;
+}
+
+if (msg.ToD_today){
+    context.ToD_today = msg.ToD_today;
+    context.ToD_today_bool = true;
+}
+
+if (msg.thermostat){
+    context.thermostat = msg.thermostat;
+    context.thermostat_bool = true;
+}
+
+if (msg.motion == 0 || msg.motion == 1){
+    if (msg.motion == 1){ //if motion detected, save time
+        context.lastmotion = context.timenow;
+        context.motion = msg.motion;
+        context.motion_bool = true;
+    }
+    
+    if(context.timenow > context.lastmotion + 1.2e+6){ //if more than 20 minutes with no motion
+        context.motion = msg.motion;
+        context.motion_bool = true;
+    } else{
+        context.motion = 1;
+        context.motion_bool = true;
+    }
+}
+
+
+if (context.temp1_bool && context.weath_bool && context.motion_bool && 
+    context.sunrise_bool && context.sunset_bool && context.timenow_bool &&
+    context.thermostat_bool){
+        
+    if (context.motion == 0 || context.timenow < context.sunrise || hour.getHours() > 22){           //if no one is around
+        msg.payload = 2;        //option
+    } 
+    
+    //...if motion is detected...
+    else {
+        ///////WINTER DAY///////
+        if(context.ToD_today == 1) { // winter
+        	if (context.motion){ //and living room unoccupied?
+                if (context.temp1 < context.thermostat){ //(it’s colder than thermostat) set point inside (thermostat is on)
+        		    //If it’s warmer in the living room (temp2) 
+                    msg.payload = 3; //// 3 is hot outside open open door (let warm air from living room/kitchen in)
+                } else if (context.temp >= context.thermostat){ //equal to or warmer than set temp
+                    //Close door (isolate space and heat up faster)
+        		    msg.payload = 1; //// 1 is hot outside close Close door (retain heat)
+                } else {
+                    msg.payload = 4; //// 4 is off optional
+                }
+        	}else {
+                msg.payload = 4; //// 4 is off optional
+            }
+        } 
+        
+        ///////SUMMER DAY///////
+        if (context.ToD_today == 2) { // summer
+        	if (context.motion){ //and living room unoccupied?
+                if (context.temp1 < context.thermostat - 0.7){ //If it’s colder in the living room by 0.7C
+        		    //If it’s warmer in the living room (temp2) 
+                    msg.payload = 2; //// 2 is cold outside open open door (let cool air from living room/kitchen in)
+                } else if (context.temp >= context.thermostat + 0.7){ //equal to or warmer than set temp
+                    //Close door (isolate space and heat up faster)
+        		    msg.payload = 1; //// 1 is hot outside close Close door (retain cool)
+                } else {
+                    msg.payload = 4; //// 4 is off optional
+                }
+        	}else {
+                msg.payload = 4; //// 4 is off optional
+            }
+        }
+        
+        ///////FALL/SPRING DAY///////
+        if (context.ToD_today == 3) { // fall/spring
+        	if (context.temp1 > context.weath){ //If it’s colder outside than inside
+                if (context.temp1 < context.thermostat){ //If it’s colder than thermostat set point inside (thermostat is on)
+        		    //If it’s warmer in the living room (temp2) 
+                    msg.payload = 3; //// 3 is hot outside open open door (let warm air from living room/kitchen in)
+                } else if (context.temp >= context.thermostat){ //(colder in the living room)
+                    //Close door (isolate space and heat up faster)
+        		    msg.payload = 0; //// 0 is cold outside close Close door (isolate space and heat up faster)
+                } else {
+                    msg.payload = 4; //// 4 is off optional
+                }
+        	} else{
+        	    msg.payload = 4;//// 4 is off optional
+        	}
+        }
+
+    }
+    
+    context.temp1_bool = false;
+    context.weath_bool = false;
+    context.motion_bool = false;
+    context.sunrise_bool = false;
+    context.sunset_bool = false;
+    context.timenow_bool = false;
+    context.temp1 = 0;
+    context.weath = 0;
+    //context.motion = 0;
+    context.sunrise = 0;
+    context.sunset = 0;
+    context.timenow = 0;
+    
+    return msg;
+    
+}
